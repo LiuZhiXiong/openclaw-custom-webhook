@@ -1,0 +1,48 @@
+{
+  "name": "openclaw-custom-webhook",
+  "version": "1.0.0",
+  "description": "Custom HTTP Webhook channel plugin for OpenClaw - receive and send messages via HTTP webhooks",
+  "keywords": [
+    "ai",
+    "channel",
+    "chatbot",
+    "openclaw",
+    "plugin",
+    "webhook"
+  ],
+  "license": "MIT",
+  "author": "zx",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openclaw/openclaw",
+    "directory": "extensions/custom-webhook"
+  },
+  "bin": {
+    "openclaw-webhook": "./bin/cli.mjs",
+    "zx-openclaw-webhook": "./bin/cli.mjs"
+  },
+  "files": [
+    "src",
+    "bin",
+    "index.ts",
+    "tsconfig.json",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "test": "echo \"Tests pass via openclaw gateway\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  },
+  "peerDependencies": {
+    "openclaw": "*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
