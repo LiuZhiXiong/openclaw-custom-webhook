@@ -1,6 +1,6 @@
 {
   "name": "openclaw-custom-webhook",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Custom HTTP Webhook channel plugin for OpenClaw - receive and send messages via HTTP webhooks",
   "keywords": [
     "ai",
@@ -24,6 +24,7 @@
   "files": [
     "src",
     "bin",
+    "scripts",
     "index.ts",
     "tsconfig.json",
     "openclaw.plugin.json",
@@ -32,6 +33,7 @@
   "type": "module",
   "main": "index.ts",
   "scripts": {
+    "postinstall": "node scripts/postinstall.mjs",
     "test": "echo \"Tests pass via openclaw gateway\""
   },
   "devDependencies": {
