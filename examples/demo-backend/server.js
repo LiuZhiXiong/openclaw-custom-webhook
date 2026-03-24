@@ -47,13 +47,13 @@ app.post('/receive', (req, res) => {
 // 2. 发送消息给 OpenClaw（通过 webhook）
 // ==========================================
 app.post('/send', async (req, res) => {
-  const { text, senderId = 'demo_user', chatId = 'demo_chat' } = req.body;
+  const { text, senderId = 'demo_user', chatId = 'demo_chat', attachments } = req.body;
 
-  if (!text) {
-    return res.status(400).json({ error: 'text is required' });
+  if (!text && (!attachments || attachments.length === 0)) {
+    return res.status(400).json({ error: 'text or attachments is required' });
   }
 
-  console.log(`\n📤 发送消息给 OpenClaw: [${text}]`);
+  console.log(`\n📤 发送消息给 OpenClaw: [${text ?? '(media only)'}]${attachments?.length ? ` + ${attachments.length} 个附件` : ''}`);
 
   try {
     const response = await fetch(`${OPENCLAW_URL}/api/plugins/custom-webhook/webhook`, {
@@ -66,7 +66,8 @@ app.post('/send', async (req, res) => {
         senderId,
         chatId,
         isGroup: false,
-        text,
+        text: text ?? '',
+        ...(attachments ? { attachments } : {}),
       }),
     });
 
@@ -74,15 +75,19 @@ app.post('/send', async (req, res) => {
 
     if (response.ok) {
       console.log(`✅ Agent 回复: ${data.reply}`);
+      if (data.attachments?.length) {
+        console.log(`📎 Agent 附件: ${data.attachments.map(a => `${a.type}: ${a.url}`).join(', ')}`);
+      }
 
       messageHistory.push(
-        { direction: 'outbound', from: 'user', senderId, chatId, text, timestamp: Date.now() },
-        { direction: 'inbound', from: 'agent', senderId, chatId, text: data.reply, timestamp: data.timestamp },
+        { direction: 'outbound', from: 'user', senderId, chatId, text, attachments, timestamp: Date.now() },
+        { direction: 'inbound', from: 'agent', senderId, chatId, text: data.reply, attachments: data.attachments, timestamp: data.timestamp },
       );
 
       res.json({
         ok: true,
         reply: data.reply,
+        ...(data.attachments ? { attachments: data.attachments } : {}),
         timestamp: data.timestamp,
       });
     } else {
