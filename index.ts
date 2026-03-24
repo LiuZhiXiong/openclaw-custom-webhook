@@ -57,9 +57,24 @@ const plugin = {
 
           const senderId = body.senderId ?? body.sender_id ?? "webhook-user";
           const chatId = body.chatId ?? body.chat_id ?? senderId;
-          const text = body.text ?? body.message ?? body.content ?? "";
+          const rawText = body.text ?? body.message ?? body.content ?? "";
           const isGroup = body.isGroup ?? body.is_group ?? false;
           const messageId = body.messageId ?? body.message_id ?? `wh-${Date.now()}`;
+
+          // Parse attachments: [{type: "image", url: "..."}, {type: "file", url: "...", name: "..."}]
+          const attachments: Array<{type?: string; url: string; name?: string}> =
+            Array.isArray(body.attachments) ? body.attachments : [];
+
+          // Build text with embedded media for the Agent
+          let text = rawText;
+          if (attachments.length > 0) {
+            const mediaParts = attachments.map((a) => {
+              const t = a.type ?? "file";
+              if (t === "image") return `![image](${a.url})`;
+              return `[${a.name ?? "file"}](${a.url})`;
+            });
+            text = text ? `${text}\n\n${mediaParts.join("\n")}` : mediaParts.join("\n");
+          }
 
           api.logger.info(`[custom-webhook] Received from ${senderId}: ${text.slice(0, 100)}`);
 
@@ -125,14 +140,21 @@ const plugin = {
             route.agentId,
           );
           const replyChunks: string[] = [];
+          const replyMedia: Array<{type: string; url: string; text?: string}> = [];
 
           await pluginRuntime.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
             ctx: ctxPayload,
             cfg,
             dispatcherOptions: {
               responsePrefix: messagesConfig.responsePrefix,
-              deliver: async (payload: { text?: string }, info: { kind: string }) => {
+              deliver: async (payload: { text?: string; mediaUrl?: string }, info: { kind: string }) => {
                 if (info.kind === "tool") return; // Skip intermediate tool results
+                if (payload.mediaUrl) {
+                  const ext = payload.mediaUrl.split(".").pop()?.toLowerCase() ?? "";
+                  const type = ["jpg","jpeg","png","gif","webp","svg"].includes(ext) ? "image" : "file";
+                  replyMedia.push({ type, url: payload.mediaUrl, text: payload.text });
+                  api.logger.info(`[custom-webhook] Agent media: ${type} ${payload.mediaUrl}`);
+                }
                 if (payload.text) {
                   replyChunks.push(payload.text);
                   api.logger.info(`[custom-webhook] Agent chunk: ${payload.text.slice(0, 100)}`);
@@ -157,6 +179,7 @@ const plugin = {
                   senderId,
                   chatId,
                   reply: agentReply,
+                  ...(replyMedia.length > 0 ? { attachments: replyMedia } : {}),
                   timestamp: Date.now(),
                 }),
               });
@@ -177,6 +200,7 @@ const plugin = {
             JSON.stringify({
               ok: true,
               reply: agentReply,
+              ...(replyMedia.length > 0 ? { attachments: replyMedia } : {}),
               timestamp: Date.now(),
             }),
           );

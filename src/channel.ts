@@ -100,6 +100,20 @@ export const customWebhookPlugin: ChannelPlugin = {
         messageId: `wh-${Date.now()}`,
       };
     },
+    sendMedia: async ({ to, text, mediaUrl, accountId, cfg }) => {
+      const account = resolveAccount(cfg, accountId);
+      await pushToExternalService(account, {
+        type: "media",
+        to,
+        text,
+        mediaUrl,
+        timestamp: Date.now(),
+      });
+      return {
+        channel: "custom-webhook",
+        messageId: `wh-media-${Date.now()}`,
+      };
+    },
   },
   gateway: {
     startAccount: async (ctx) => {

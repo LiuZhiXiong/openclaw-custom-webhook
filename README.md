@@ -89,8 +89,19 @@ curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
 | `senderId` | string | Yes | Unique sender identifier |
 | `chatId` | string | No | Conversation ID (defaults to senderId) |
 | `text` | string | Yes | Message content |
+| `attachments` | array | No | Media attachments (see below) |
 | `isGroup` | boolean | No | Whether this is a group chat (default: false) |
 | `messageId` | string | No | Optional message ID for deduplication |
+
+**Attachments format:**
+```json
+{
+  "attachments": [
+    {"type": "image", "url": "https://example.com/photo.jpg"},
+    {"type": "file", "url": "https://example.com/doc.pdf", "name": "document.pdf"}
+  ]
+}
+```
 
 **Response (200 OK):**
 
