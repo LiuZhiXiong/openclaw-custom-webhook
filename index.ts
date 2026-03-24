@@ -114,11 +114,25 @@ const plugin = {
           });
 
           // 5. Finalize inbound context
+          // Build media arrays for OpenClaw's vision pipeline
+          const imageAttachments = attachments.filter(
+            (a) => (a.type ?? "file") === "image" && a.url,
+          );
+          const mediaUrls = imageAttachments.map((a) => a.url);
+          const mediaTypes = imageAttachments.map((a) => {
+            const ext = a.url.split(".").pop()?.split("?")[0]?.toLowerCase() ?? "";
+            const mimeMap: Record<string, string> = {
+              jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+              gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
+            };
+            return mimeMap[ext] ?? "image/jpeg";
+          });
+
           const ctxPayload = pluginRuntime.channel.reply.finalizeInboundContext({
-            Body: envelope ?? text,
-            BodyForAgent: text,
-            RawBody: text,
-            CommandBody: text,
+            Body: envelope ?? rawText,
+            BodyForAgent: rawText,
+            RawBody: rawText,
+            CommandBody: rawText,
             From: fromAddress,
             To: toAddress,
             SessionKey: route.sessionKey,
@@ -132,6 +146,13 @@ const plugin = {
             OriginatingChannel: "custom-webhook",
             OriginatingTo: toAddress,
             CommandAuthorized: true,
+            // Media fields for Agent vision
+            ...(mediaUrls.length > 0 ? {
+              MediaUrls: mediaUrls,
+              MediaTypes: mediaTypes,
+              MediaUrl: mediaUrls[0],
+              MediaType: mediaTypes[0],
+            } : {}),
           });
 
           // 6. Dispatch to agent and collect reply
