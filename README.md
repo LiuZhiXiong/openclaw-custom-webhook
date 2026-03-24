@@ -146,6 +146,63 @@ npx openclaw-custom-webhook help     # Show help
 - ✅ Interactive CLI setup
 - ✅ Works with any HTTP client (curl, Postman, your app)
 
+## Troubleshooting
+
+### 发消息返回 "not found"
+
+1. **必须重启 gateway**：安装插件后需要重启 gateway 才能加载
+   ```bash
+   openclaw gateway restart
+   ```
+
+2. **确认插件加载成功**：检查 gateway 启动日志中是否有：
+   ```
+   [plugins] [custom-webhook] Registering HTTP route at /api/plugins/custom-webhook/webhook
+   ```
+   如果没有，说明插件未加载。
+
+3. **确认插件已安装**：
+   ```bash
+   ls ~/.openclaw/extensions/custom-webhook/
+   # 应包含 index.ts, openclaw.plugin.json, package.json 等
+   ```
+
+4. **确认配置正确**：
+   ```bash
+   grep -A10 "custom-webhook" ~/.openclaw/openclaw.json
+   # 应包含 "enabled": true 和 accounts 配置
+   ```
+
+5. **检查 OpenClaw 版本**（需要 >= 2026.3.22）：
+   ```bash
+   openclaw --version
+   ```
+
+6. **带调试日志启动**：
+   ```bash
+   OPENCLAW_PLUGIN_LOADER_DEBUG_STACKS=1 openclaw gateway run --force
+   ```
+
+### 找不到 plugin-sdk
+
+`openclaw/plugin-sdk` 由 OpenClaw 运行时自动提供（通过 jiti 别名），不需要手动安装。如果报错：
+
+- 确认 OpenClaw 版本 >= 2026.3.22
+- 确认是通过 `openclaw plugins install` 安装的（不要手动 npm install）
+- 尝试重新安装：
+  ```bash
+  rm -rf ~/.openclaw/extensions/custom-webhook
+  openclaw plugins install openclaw-custom-webhook
+  openclaw gateway restart
+  ```
+
+### gateway 绑定了 loopback
+
+如果从外部机器访问，gateway 需要绑定到 `0.0.0.0`：
+```bash
+openclaw gateway run --bind 0.0.0.0 --port 18789 --force
+```
+
 ## License
 
 MIT
