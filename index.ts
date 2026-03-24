@@ -114,19 +114,44 @@ const plugin = {
           });
 
           // 5. Finalize inbound context
-          // Build media arrays for OpenClaw's vision pipeline
+          // Download images to temp files for OpenClaw's vision pipeline
           const imageAttachments = attachments.filter(
             (a) => (a.type ?? "file") === "image" && a.url,
           );
-          const mediaUrls = imageAttachments.map((a) => a.url);
-          const mediaTypes = imageAttachments.map((a) => {
-            const ext = a.url.split(".").pop()?.split("?")[0]?.toLowerCase() ?? "";
-            const mimeMap: Record<string, string> = {
-              jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
-              gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
-            };
-            return mimeMap[ext] ?? "image/jpeg";
-          });
+          const mediaPaths: string[] = [];
+          const mediaUrls: string[] = [];
+          const mediaTypes: string[] = [];
+
+          if (imageAttachments.length > 0) {
+            const os = await import("node:os");
+            const fs = await import("node:fs");
+            const path = await import("node:path");
+
+            for (const attachment of imageAttachments) {
+              try {
+                const resp = await fetch(attachment.url);
+                if (!resp.ok) {
+                  api.logger.warn(`[custom-webhook] Failed to download ${attachment.url}: ${resp.status}`);
+                  continue;
+                }
+                const contentType = resp.headers.get("content-type") ?? "image/jpeg";
+                const extMap: Record<string, string> = {
+                  "image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif",
+                  "image/webp": ".webp", "image/svg+xml": ".svg",
+                };
+                const ext = extMap[contentType] ?? ".jpg";
+                const tmpFile = path.join(os.tmpdir(), `webhook-media-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+                const buffer = Buffer.from(await resp.arrayBuffer());
+                fs.writeFileSync(tmpFile, buffer);
+                mediaPaths.push(tmpFile);
+                mediaUrls.push(attachment.url);
+                mediaTypes.push(contentType);
+                api.logger.info(`[custom-webhook] Downloaded ${attachment.url} -> ${tmpFile} (${buffer.length} bytes)`);
+              } catch (err) {
+                api.logger.warn(`[custom-webhook] Download error for ${attachment.url}: ${err}`);
+              }
+            }
+          }
 
           const ctxPayload = pluginRuntime.channel.reply.finalizeInboundContext({
             Body: envelope ?? rawText,
@@ -146,12 +171,14 @@ const plugin = {
             OriginatingChannel: "custom-webhook",
             OriginatingTo: toAddress,
             CommandAuthorized: true,
-            // Media fields for Agent vision
-            ...(mediaUrls.length > 0 ? {
-              MediaUrls: mediaUrls,
-              MediaTypes: mediaTypes,
+            // Media fields for Agent vision pipeline
+            ...(mediaPaths.length > 0 ? {
+              MediaPath: mediaPaths[0],
+              MediaPaths: mediaPaths,
               MediaUrl: mediaUrls[0],
+              MediaUrls: mediaUrls,
               MediaType: mediaTypes[0],
+              MediaTypes: mediaTypes,
             } : {}),
           });
 
