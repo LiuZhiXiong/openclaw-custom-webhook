@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * postinstall script: creates a symlink from this plugin's node_modules/openclaw
+ * postinstall script: creates a symlink from this plugin's node_modules/openclaw       
  * to the actual OpenClaw installation so that `openclaw/plugin-sdk` imports resolve.
  *
  * OpenClaw's jiti alias normally handles this, but only when the OpenClaw package root

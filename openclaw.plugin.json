@@ -1,5 +1,5 @@
 {
-  "id": "custom-webhook",
+  "id": "openclaw-custom-webhook",
   "name": "Custom Webhook Channel",
   "description": "HTTP Webhook channel plugin - receive messages via POST and get AI agent replies. Perfect for integrating OpenClaw with any external system via simple HTTP calls.",
   "channels": ["custom-webhook"],

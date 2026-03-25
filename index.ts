@@ -19,7 +19,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 }
 
 const plugin = {
-  id: "custom-webhook",
+  id: "openclaw-custom-webhook",
   name: "Custom Webhook",
   description: "Custom HTTP Webhook channel plugin for receiving and sending messages via HTTP",
   configSchema: emptyPluginConfigSchema(),
