@@ -46,41 +46,98 @@ function err(msg) { console.log(`\x1b[31m❌\x1b[0m ${msg}`); }
 // =========================================
 // Find OpenClaw installation
 // =========================================
+function isOpenClawPkg(dir) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf-8"));
+    return pkg.name === "openclaw";
+  } catch { return false; }
+}
+
+function walkUpForOpenClaw(startDir) {
+  let cursor = startDir;
+  for (let i = 0; i < 10; i++) {
+    if (isOpenClawPkg(cursor)) return cursor;
+    // Check node_modules/openclaw at this level
+    const nmOC = path.join(cursor, "node_modules", "openclaw");
+    if (isOpenClawPkg(nmOC)) return nmOC;
+    const parent = path.dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+  return null;
+}
+
 function findOpenClawRoot() {
+  const candidates = [];
+
   // 1. npm global
   try {
     const globalRoot = execSync("npm root -g", { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
-    const p = path.join(globalRoot, "openclaw");
-    if (fs.existsSync(path.join(p, "package.json"))) return p;
+    candidates.push(path.join(globalRoot, "openclaw"));
   } catch {}
 
-  // 2. which openclaw -> resolve
+  // 2. pnpm global
   try {
-    const bin = execSync("which openclaw", { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
-    let realBin = bin;
-    try { realBin = fs.realpathSync(bin); } catch {}
-    let cursor = path.dirname(realBin);
-    for (let i = 0; i < 8; i++) {
-      const pkgPath = path.join(cursor, "package.json");
-      if (fs.existsSync(pkgPath)) {
-        try {
-          const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-          if (pkg.name === "openclaw") return cursor;
-        } catch {}
-      }
-      const parent = path.dirname(cursor);
-      if (parent === cursor) break;
-      cursor = parent;
-    }
+    const pnpmRoot = execSync("pnpm root -g", { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+    candidates.push(path.join(pnpmRoot, "openclaw"));
   } catch {}
 
-  // 3. Common paths
-  for (const p of [
-    "/usr/lib/node_modules/openclaw",
+  // 3. Resolve from `which openclaw` binary (covers nvm, fnm, volta, brew, etc.)
+  for (const whichCmd of ["which openclaw", "command -v openclaw"]) {
+    try {
+      const bin = execSync(whichCmd, { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"], shell: true }).trim();
+      if (!bin) continue;
+      let realBin = bin;
+      try { realBin = fs.realpathSync(bin); } catch {}
+      // Walk up from the binary to find package root
+      const found = walkUpForOpenClaw(path.dirname(realBin));
+      if (found) return found;
+    } catch {}
+  }
+
+  // 4. Common install paths (homebrew, system, user-local)
+  const home = os.homedir();
+  candidates.push(
+    // Homebrew (macOS)
+    "/opt/homebrew/lib/node_modules/openclaw",
     "/usr/local/lib/node_modules/openclaw",
-    path.join(os.homedir(), ".npm-global/lib/node_modules/openclaw"),
-  ]) {
-    if (fs.existsSync(path.join(p, "package.json"))) return p;
+    // System
+    "/usr/lib/node_modules/openclaw",
+    // User-local npm/pnpm
+    path.join(home, ".npm-global/lib/node_modules/openclaw"),
+    path.join(home, "Library/pnpm/global/5/node_modules/openclaw"),
+    path.join(home, ".local/share/pnpm/global/5/node_modules/openclaw"),
+    // nvm common locations
+    ...(() => {
+      try {
+        const nvmDir = process.env.NVM_DIR || path.join(home, ".nvm");
+        const versions = path.join(nvmDir, "versions/node");
+        if (fs.existsSync(versions)) {
+          return fs.readdirSync(versions)
+            .map(v => path.join(versions, v, "lib/node_modules/openclaw"))
+            .reverse(); // newest first
+        }
+      } catch {}
+      return [];
+    })(),
+    // fnm
+    ...(() => {
+      try {
+        const fnmDir = process.env.FNM_DIR || path.join(home, ".fnm/node-versions");
+        if (fs.existsSync(fnmDir)) {
+          return fs.readdirSync(fnmDir)
+            .map(v => path.join(fnmDir, v, "installation/lib/node_modules/openclaw"))
+            .reverse();
+        }
+      } catch {}
+      return [];
+    })(),
+    // volta
+    path.join(home, ".volta/tools/image/packages/openclaw"),
+  );
+
+  for (const p of candidates) {
+    if (isOpenClawPkg(p)) return p;
   }
 
   return null;
@@ -89,12 +146,32 @@ function findOpenClawRoot() {
 // =========================================
 // Create symlink for plugin-sdk
 // =========================================
-function fixSdk() {
+async function fixSdk() {
   log("查找 OpenClaw 安装位置...");
-  const root = findOpenClawRoot();
+  let root = findOpenClawRoot();
+
   if (!root) {
-    err("找不到 OpenClaw 安装位置！请确认已安装: npm install -g openclaw");
-    return false;
+    warn("自动检测未找到 OpenClaw 安装。");
+    console.log("  常见安装方式:");
+    console.log("    npm install -g openclaw");
+    console.log("    pnpm add -g openclaw");
+    console.log("");
+    const manual = await ask("请输入 OpenClaw 安装路径（留空跳过）: ");
+    if (manual && isOpenClawPkg(manual)) {
+      root = manual;
+    } else if (manual) {
+      // Maybe they gave the bin dir, try walking up
+      const found = walkUpForOpenClaw(manual);
+      if (found) {
+        root = found;
+      } else {
+        err(`路径 ${manual} 不是有效的 OpenClaw 安装目录`);
+        return false;
+      }
+    } else {
+      err("跳过 symlink 创建。插件可能无法加载，请手动修复。");
+      return false;
+    }
   }
   ok(`找到 OpenClaw: ${root}`);
 
@@ -103,8 +180,9 @@ function fixSdk() {
 
   // Check existing
   try {
-    const existing = fs.readlinkSync(link);
-    if (existing === root) {
+    const existing = fs.realpathSync(link);
+    const realRoot = fs.realpathSync(root);
+    if (existing === realRoot) {
       ok("symlink 已存在且正确");
       return true;
     }
@@ -217,7 +295,7 @@ async function install() {
 
   // Step 2: Fix SDK symlink
   log("步骤 2/4: 修复 plugin-sdk 链接...");
-  fixSdk();
+  await fixSdk();
   console.log("");
 
   // Step 3: Configure
@@ -309,7 +387,7 @@ async function main() {
         await test();
         break;
       case "fix-sdk":
-        fixSdk();
+        await fixSdk();
         break;
       default:
         console.log(`
