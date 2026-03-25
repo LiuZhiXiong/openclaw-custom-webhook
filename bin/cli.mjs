@@ -327,17 +327,32 @@ async function install() {
   }
 
   console.log("");
-  console.log("=".repeat(40));
+  console.log("\x1b[36m" + "=".repeat(50) + "\x1b[0m");
   ok("安装完成！");
   console.log("");
-  console.log("发送测试消息:");
+  console.log("\x1b[1m📌 快速入口:\x1b[0m");
+  console.log("");
+  console.log("  \x1b[36m🖥  Web 测试面板:\x1b[0m  http://localhost:18789/api/plugins/custom-webhook/panel");
+  console.log("  \x1b[36m📋 OpenAPI 文档:\x1b[0m  http://localhost:18789/api/plugins/custom-webhook/openapi.json");
+  console.log("  \x1b[36m🏥 Health 检查:\x1b[0m   http://localhost:18789/api/plugins/custom-webhook/health");
+  console.log("");
+  console.log("\x1b[1m🚀 下一步:\x1b[0m");
+  console.log("");
   const secret = readConfig().channels?.["custom-webhook"]?.accounts?.default?.receiveSecret ?? "YOUR_SECRET";
+  console.log(`  \x1b[33m# 在浏览器中测试:\x1b[0m`);
+  console.log(`  npx openclaw-custom-webhook open`);
+  console.log("");
+  console.log(`  \x1b[33m# 或用 curl 发消息:\x1b[0m`);
   console.log(`  curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \\`);
   console.log(`    -H "Content-Type: application/json" \\`);
   console.log(`    -H "Authorization: Bearer ${secret}" \\`);
   console.log(`    -d '{"senderId":"test","text":"hello"}'`);
   console.log("");
-  console.log("或运行: npx openclaw-custom-webhook test");
+  console.log(`  \x1b[33m# 或用 CLI 测试:\x1b[0m`);
+  console.log(`  npx openclaw-custom-webhook test`);
+  console.log("");
+  console.log(`  \x1b[33m# 查看插件状态:\x1b[0m`);
+  console.log(`  npx openclaw-custom-webhook status`);
   console.log("");
 }
 
@@ -382,6 +397,155 @@ async function test() {
 }
 
 // =========================================
+// Open: open web panel in browser
+// =========================================
+async function openPanel() {
+  const port = await ask("Gateway 端口 [18789]: ") || "18789";
+  const url = `http://localhost:${port}/api/plugins/custom-webhook/panel`;
+  log(`打开 Web 测试面板: ${url}`);
+
+  try {
+    // Check health first
+    const resp = await fetch(`http://localhost:${port}/api/plugins/custom-webhook/health`);
+    if (resp.ok) {
+      const data = await resp.json();
+      ok(`Gateway 运行中 (uptime: ${Math.round(data.uptime)}s)`);
+    }
+  } catch {
+    warn("Gateway 可能未运行，请先启动");
+  }
+
+  const { platform } = process;
+  try {
+    if (platform === "darwin") execSync(`open "${url}"`);
+    else if (platform === "win32") execSync(`start "" "${url}"`);
+    else execSync(`xdg-open "${url}"`);
+    ok("已在浏览器中打开");
+  } catch {
+    console.log(`请手动打开: ${url}`);
+  }
+}
+
+// =========================================
+// Status: show plugin status
+// =========================================
+async function status() {
+  const cfg = readConfig();
+  const acct = cfg.channels?.["custom-webhook"]?.accounts?.default ?? {};
+  const pluginEntry = cfg.plugins?.entries?.["custom-webhook"];
+  const pluginInstalled = fs.existsSync(PLUGIN_DIR);
+  let pluginVersion = "未安装";
+  if (pluginInstalled) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(PLUGIN_DIR, "package.json"), "utf-8"));
+      pluginVersion = pkg.version ?? "未知";
+    } catch {}
+  }
+
+  console.log("");
+  console.log("\x1b[1m🦞 Custom Webhook 插件状态\x1b[0m");
+  console.log("\x1b[36m" + "─".repeat(40) + "\x1b[0m");
+  console.log("");
+  console.log(`  \x1b[1m插件版本:\x1b[0m   ${pluginVersion}`);
+  console.log(`  \x1b[1m插件目录:\x1b[0m   ${pluginInstalled ? "✅ " + PLUGIN_DIR : "❌ 未安装"}`);
+  console.log(`  \x1b[1m已启用:\x1b[0m     ${pluginEntry?.enabled ? "✅ 是" : "❌ 否"}`);
+  console.log("");
+  console.log("\x1b[36m  配置:\x1b[0m");
+  console.log(`  receiveSecret: ${acct.receiveSecret ? "✅ 已配置" : "❌ 未配置"}`);
+  console.log(`  pushUrl:       ${acct.pushUrl || "未配置"}`);
+  console.log(`  pushSecret:    ${acct.pushSecret ? "✅ 已配置" : "未配置"}`);
+  console.log("");
+
+  // Check gateway
+  try {
+    const resp = await fetch("http://localhost:18789/api/plugins/custom-webhook/health");
+    if (resp.ok) {
+      const data = await resp.json();
+      console.log(`\x1b[36m  Gateway:\x1b[0m`);
+      console.log(`  状态:    ✅ 运行中`);
+      console.log(`  运行时间: ${Math.round(data.uptime)}s`);
+      console.log("");
+      console.log(`\x1b[36m  端点:\x1b[0m`);
+      console.log(`  🖥  面板:    http://localhost:18789/api/plugins/custom-webhook/panel`);
+      console.log(`  📋 OpenAPI: http://localhost:18789/api/plugins/custom-webhook/openapi.json`);
+      console.log(`  🏥 Health:  http://localhost:18789/api/plugins/custom-webhook/health`);
+      console.log(`  📨 Webhook: http://localhost:18789/api/plugins/custom-webhook/webhook`);
+    }
+  } catch {
+    console.log(`\x1b[36m  Gateway:\x1b[0m`);
+    console.log(`  状态: ❌ 未运行`);
+  }
+  console.log("");
+}
+
+// =========================================
+// Uninstall: clean removal
+// =========================================
+async function uninstall() {
+  console.log("");
+  console.log("\x1b[1m🗑  卸载 Custom Webhook 插件\x1b[0m");
+  console.log("");
+
+  const confirm = await ask("确认卸载？(y/n) [n]: ");
+  if (confirm.toLowerCase() !== "y") {
+    log("已取消");
+    return;
+  }
+
+  // 1. Remove plugin directory
+  if (fs.existsSync(PLUGIN_DIR)) {
+    fs.rmSync(PLUGIN_DIR, { recursive: true, force: true });
+    ok("已删除插件目录");
+  }
+
+  // 2. Clean config
+  const cfg = readConfig();
+  let changed = false;
+
+  // Remove from plugins.entries
+  if (cfg.plugins?.entries?.["custom-webhook"]) {
+    delete cfg.plugins.entries["custom-webhook"];
+    changed = true;
+  }
+  // Remove from plugins.allow
+  if (Array.isArray(cfg.plugins?.allow)) {
+    const before = cfg.plugins.allow.length;
+    cfg.plugins.allow = cfg.plugins.allow.filter(x => !x.includes("custom-webhook"));
+    if (cfg.plugins.allow.length < before) changed = true;
+  }
+  // Remove channels config
+  if (cfg.channels?.["custom-webhook"]) {
+    delete cfg.channels["custom-webhook"];
+    changed = true;
+  }
+  // Remove from plugins.installed
+  if (cfg.plugins?.installed?.["custom-webhook"]) {
+    delete cfg.plugins.installed["custom-webhook"];
+    changed = true;
+  }
+
+  if (changed) {
+    writeConfig(cfg);
+    ok("已清理 openclaw.json");
+  }
+
+  // 3. Restart gateway
+  const restart = await ask("是否重启 Gateway？(y/n) [y]: ");
+  if (restart === "" || restart.toLowerCase() === "y") {
+    try {
+      execSync("openclaw gateway restart", { stdio: ["inherit", "inherit", "inherit"] });
+      ok("Gateway 已重启");
+    } catch {
+      warn("Gateway 重启失败");
+    }
+  }
+
+  console.log("");
+  ok("卸载完成！");
+  console.log("");
+}
+
+// =========================================
 // Main
 // =========================================
 async function main() {
@@ -401,21 +565,36 @@ async function main() {
       case "fix-sdk":
         await fixSdk();
         break;
+      case "open":
+        await openPanel();
+        break;
+      case "status":
+        await status();
+        break;
+      case "uninstall":
+        await uninstall();
+        break;
       default:
         console.log(`
-openclaw-custom-webhook - Custom Webhook Plugin for OpenClaw
+\x1b[1m🦞 openclaw-custom-webhook\x1b[0m — Custom Webhook Plugin for OpenClaw
 
-命令:
-  install    一键安装（安装插件 + SDK修复 + 配置 + 重启）
-  setup      仅配置 receiveSecret / pushUrl
-  test       发送测试消息
-  fix-sdk    修复 plugin-sdk symlink
+\x1b[36m安装管理:\x1b[0m
+  install      一键安装（插件 + SDK + 配置 + 重启）
+  uninstall    完整卸载（删除插件 + 清理配置）
+  fix-sdk      修复 plugin-sdk symlink
 
-用法:
+\x1b[36m配置:\x1b[0m
+  setup        配置 receiveSecret / pushUrl / pushSecret
+  status       查看插件状态、配置和端点
+
+\x1b[36m使用:\x1b[0m
+  test         发送测试消息
+  open         在浏览器打开 Web 测试面板
+
+\x1b[36m用法:\x1b[0m
   npx openclaw-custom-webhook install
-  npx openclaw-custom-webhook setup
-  npx openclaw-custom-webhook test
-  npx openclaw-custom-webhook fix-sdk
+  npx openclaw-custom-webhook open
+  npx openclaw-custom-webhook status
 `);
     }
   } finally {
