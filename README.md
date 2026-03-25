@@ -1,36 +1,123 @@
 # openclaw-custom-webhook
 
-Custom HTTP Webhook channel plugin for [OpenClaw](https://github.com/openclaw/openclaw). Receive messages via HTTP POST and get AI agent replies — perfect for integrating OpenClaw with any external system.
+Custom HTTP Webhook channel plugin for [OpenClaw](https://github.com/openclaw/openclaw).  
+通过 HTTP 接口收发消息，让任何系统都能接入 AI Agent。
 
-## Installation
+## 一键安装
 
 ```bash
+npx openclaw-custom-webhook install
+```
+
+自动完成：安装插件 → 修复 SDK 链接 → 配置密钥 → 重启 Gateway。
+
+## 手动安装
+
+```bash
+# 1. 安装插件
 openclaw plugins install openclaw-custom-webhook
-```
 
-Or via npx:
+# 2. 修复 SDK（全局安装用户需要）
+npx openclaw-custom-webhook fix-sdk
 
-```bash
+# 3. 配置
 npx openclaw-custom-webhook setup
+
+# 4. 重启
+openclaw gateway restart
 ```
 
-## Quick Start
-
-### 1. Install the plugin
+## 发消息
 
 ```bash
-openclaw plugins install openclaw-custom-webhook
+curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-token" \
+  -d '{"senderId":"user1","text":"你好！"}'
 ```
 
-### 2. Configure
+**回复：**
 
-Run the interactive setup:
+```json
+{
+  "ok": true,
+  "reply": "你好！有什么可以帮你的？",
+  "timestamp": 1774290802998
+}
+```
+
+## 发送图片
 
 ```bash
-npx openclaw-custom-webhook setup
+curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-token" \
+  -d '{
+    "senderId": "user1",
+    "text": "这张图片里是什么？",
+    "attachments": [
+      {"type": "image", "url": "https://example.com/photo.jpg"}
+    ]
+  }'
 ```
 
-Or manually add to `~/.openclaw/openclaw.json`:
+图片会自动下载并通过 OpenClaw 的 media understanding 管道传给 Agent 进行视觉分析。
+
+## API 参考
+
+### `POST /api/plugins/custom-webhook/webhook`
+
+**Headers:**
+
+| Header | 必填 | 说明 |
+|--------|------|------|
+| `Authorization` | ✅ | `Bearer <receiveSecret>` |
+| `Content-Type` | ✅ | `application/json` |
+
+**请求体：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `senderId` | string | ✅ | 发送者标识 |
+| `text` | string | ✅ | 消息内容 |
+| `chatId` | string | ❌ | 会话 ID（默认等于 senderId） |
+| `attachments` | array | ❌ | 附件列表（见下方） |
+| `isGroup` | boolean | ❌ | 是否群聊（默认 false） |
+| `messageId` | string | ❌ | 消息 ID（用于去重） |
+
+**附件格式：**
+
+```json
+[
+  {"type": "image", "url": "https://example.com/photo.jpg"},
+  {"type": "file", "url": "https://example.com/doc.pdf", "name": "report.pdf"}
+]
+```
+
+**成功响应 (200)：**
+
+```json
+{
+  "ok": true,
+  "reply": "Agent 的回复文本",
+  "attachments": [{"type": "image", "url": "...", "text": "描述"}],
+  "timestamp": 1774290802998
+}
+```
+
+**错误响应：**
+- `401` — 认证失败
+- `500` — 内部处理错误
+
+## 配置项
+
+| 字段 | 说明 |
+|------|------|
+| `receiveSecret` | 接收消息的 Bearer Token（必填） |
+| `pushUrl` | Agent 回复的推送地址（选填） |
+| `pushSecret` | 推送时使用的 Bearer Token（选填） |
+
+配置文件位置：`~/.openclaw/openclaw.json`
 
 ```json
 {
@@ -39,7 +126,7 @@ Or manually add to `~/.openclaw/openclaw.json`:
       "accounts": {
         "default": {
           "receiveSecret": "your-secret-token",
-          "pushUrl": "http://your-backend.com/webhook/receive",
+          "pushUrl": "http://your-backend.com/receive",
           "pushSecret": "your-push-secret"
         }
       }
@@ -48,170 +135,99 @@ Or manually add to `~/.openclaw/openclaw.json`:
 }
 ```
 
-### 3. Restart gateway
+## 推送通知
 
-```bash
-openclaw gateway restart
-```
-
-### 4. Send a message
-
-```bash
-curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-secret-token" \
-  -d '{"senderId":"user1","chatId":"chat1","text":"Hello!"}'
-```
-
-**Response:**
+配置了 `pushUrl` 后，Agent 回复会自动推送到你的后端：
 
 ```json
 {
-  "ok": true,
-  "reply": "Hey! I'm your AI assistant. How can I help?",
+  "type": "reply",
+  "to": "custom-webhook:chat1",
+  "text": "Agent 的回复",
   "timestamp": 1774290802998
 }
 ```
 
-## API Reference
-
-### `POST /api/plugins/custom-webhook/webhook`
-
-**Headers:**
-| Header | Required | Description |
-|--------|----------|-------------|
-| `Authorization` | Yes | `Bearer <receiveSecret>` |
-| `Content-Type` | Yes | `application/json` |
-
-**Request Body:**
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `senderId` | string | Yes | Unique sender identifier |
-| `chatId` | string | No | Conversation ID (defaults to senderId) |
-| `text` | string | Yes | Message content |
-| `attachments` | array | No | Media attachments (see below) |
-| `isGroup` | boolean | No | Whether this is a group chat (default: false) |
-| `messageId` | string | No | Optional message ID for deduplication |
-
-**Attachments format:**
-```json
-{
-  "attachments": [
-    {"type": "image", "url": "https://example.com/photo.jpg"},
-    {"type": "file", "url": "https://example.com/doc.pdf", "name": "document.pdf"}
-  ]
-}
-```
-
-**Response (200 OK):**
+媒体回复推送格式：
 
 ```json
 {
-  "ok": true,
-  "reply": "Agent's response text",
+  "type": "media",
+  "to": "custom-webhook:chat1",
+  "text": "描述文字",
+  "mediaUrl": "https://...",
   "timestamp": 1774290802998
 }
 ```
 
-**Error Responses:**
-
-- `401`: Invalid or missing authorization
-- `500`: Internal processing error
-
-## Configuration Options
-
-| Field           | Description                                         |
-| --------------- | --------------------------------------------------- |
-| `receiveSecret` | Bearer token for authenticating incoming webhooks   |
-| `pushUrl`       | URL to forward agent replies to (optional)          |
-| `pushSecret`    | Bearer token for push URL authentication (optional) |
-
-## Push Notifications
-
-When `pushUrl` is configured, agent replies are automatically pushed:
-
-```json
-{
-  "type": "agent_reply",
-  "senderId": "user1",
-  "chatId": "chat1",
-  "reply": "Agent's response",
-  "timestamp": 1774290802998
-}
-```
-
-## CLI Commands
+## CLI 命令
 
 ```bash
-npx openclaw-custom-webhook setup   # Interactive configuration
-npx openclaw-custom-webhook test     # Send a test message
-npx openclaw-custom-webhook help     # Show help
+npx openclaw-custom-webhook install    # 一键安装（推荐）
+npx openclaw-custom-webhook setup      # 仅配置密钥
+npx openclaw-custom-webhook test       # 发送测试消息
+npx openclaw-custom-webhook fix-sdk    # 修复 plugin-sdk 链接
 ```
 
-## Features
+## 功能特性
 
-- ✅ Full OpenClaw agent pipeline integration (like Feishu/Telegram)
-- ✅ Multi-turn conversation support with context retention
-- ✅ Bearer token authentication
-- ✅ Push notifications to external backends
-- ✅ Interactive CLI setup
-- ✅ Works with any HTTP client (curl, Postman, your app)
+- ✅ 一键安装，自动配置
+- ✅ 完整 OpenClaw Agent 管道集成
+- ✅ 多轮对话，上下文保持
+- ✅ 图片/文件附件支持（Agent 视觉分析）
+- ✅ Bearer Token 认证
+- ✅ 异步推送通知
+- ✅ 支持 npm / pnpm / nvm / fnm / volta / homebrew 等安装方式
+- ✅ 兼容任何 HTTP 客户端（curl、Postman、你的应用）
 
-## Troubleshooting
+## 故障排查
 
 ### 发消息返回 "not found"
 
-1. **必须重启 gateway**：安装插件后需要重启 gateway 才能加载
+1. **重启 Gateway**：安装插件后必须重启
    ```bash
    openclaw gateway restart
    ```
 
-2. **确认插件加载成功**：检查 gateway 启动日志中是否有：
+2. **确认插件加载**：检查启动日志是否有
    ```
-   [plugins] [custom-webhook] Registering HTTP route at /api/plugins/custom-webhook/webhook
-   ```
-   如果没有，说明插件未加载。
-
-3. **确认插件已安装**：
-   ```bash
-   ls ~/.openclaw/extensions/custom-webhook/
-   # 应包含 index.ts, openclaw.plugin.json, package.json 等
+   [custom-webhook] Registering HTTP route at /api/plugins/custom-webhook/webhook
    ```
 
-4. **确认配置正确**：
-   ```bash
-   grep -A10 "custom-webhook" ~/.openclaw/openclaw.json
-   # 应包含 "enabled": true 和 accounts 配置
-   ```
-
-5. **检查 OpenClaw 版本**（需要 >= 2026.3.22）：
-   ```bash
-   openclaw --version
-   ```
-
-6. **带调试日志启动**：
+3. **带调试日志启动**：
    ```bash
    OPENCLAW_PLUGIN_LOADER_DEBUG_STACKS=1 openclaw gateway run --force
    ```
 
 ### 找不到 plugin-sdk
 
-`openclaw/plugin-sdk` 由 OpenClaw 运行时自动提供（通过 jiti 别名），不需要手动安装。如果报错：
+```bash
+# 方式一：一键修复
+npx openclaw-custom-webhook fix-sdk
 
-- 确认 OpenClaw 版本 >= 2026.3.22
-- 确认是通过 `openclaw plugins install` 安装的（不要手动 npm install）
-- 尝试重新安装：
-  ```bash
-  rm -rf ~/.openclaw/extensions/custom-webhook
-  openclaw plugins install openclaw-custom-webhook
-  openclaw gateway restart
-  ```
+# 方式二：手动创建 symlink
+mkdir -p ~/.openclaw/extensions/custom-webhook/node_modules
+ln -sf $(npm root -g)/openclaw ~/.openclaw/extensions/custom-webhook/node_modules/openclaw
+```
 
-### gateway 绑定了 loopback
+### 外部机器访问
 
-如果从外部机器访问，gateway 需要绑定到 `0.0.0.0`：
+Gateway 默认绑定 loopback，从外部访问需要：
+
 ```bash
 openclaw gateway run --bind 0.0.0.0 --port 18789 --force
+```
+
+## Demo 后端
+
+`examples/demo-backend/` 目录包含一个完整的 Express.js 参考实现，支持：
+
+- `/send` — 发消息给 Agent（支持附件）
+- `/receive` — 接收 Agent 推送回复
+- `/history` — 查看消息历史
+
+```bash
+cd examples/demo-backend && npm install && npm start
 ```
 
 ## License
