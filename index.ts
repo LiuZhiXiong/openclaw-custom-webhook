@@ -408,7 +408,7 @@ textarea::placeholder { color: var(--text-muted); font-family: var(--font-mono);
     </div>
     <div class="header-actions">
       <div class="status-indicator" id="status"><span id="statusText">PROBING...</span></div>
-      <a href="\${OPENAPI_PATH}" target="_blank" class="btn-action">DOCS.JSON</a>
+      <a href="${OPENAPI_PATH}" target="_blank" class="btn-action">DOCS.JSON</a>
       <a href="https://github.com/LiuZhiXiong/openclaw-custom-webhook" target="_blank" class="btn-action">REPO.SRC</a>
       <button class="btn-action btn-danger" onclick="clearChat()">PURGE.LOG</button>
     </div>
@@ -445,7 +445,7 @@ textarea::placeholder { color: var(--text-muted); font-family: var(--font-mono);
 </div>
 
 <script>
-const webhookUrl="\${webhookUrl}";
+const webhookUrl="${webhookUrl}";
 const msgsEl=document.getElementById("messages");
 const input=document.getElementById("input");
 const inputWrapper=document.getElementById("inputWrapper");
@@ -482,7 +482,7 @@ sendBtn.addEventListener("click",send);
 
 async function checkHealth(){
   try{
-    const r=await fetch("\${HEALTH_PATH}");
+    const r=await fetch("${HEALTH_PATH}");
     if(r.ok){
       const d=await r.json();
       statusDot.className="status-indicator";
