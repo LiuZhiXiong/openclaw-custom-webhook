@@ -6,6 +6,62 @@ import { setCustomWebhookRuntime } from "./src/runtime.js";
 import { getCustomWebhookRuntime } from "./src/runtime.js";
 
 const WEBHOOK_PATH = "/api/plugins/custom-webhook/webhook";
+const HEALTH_PATH = "/api/plugins/custom-webhook/health";
+
+// Message dedup: keep recent IDs for 5 minutes
+const recentMessageIds = new Map<string, number>();
+const DEDUP_TTL_MS = 5 * 60 * 1000;
+function isDuplicate(id: string): boolean {
+  const now = Date.now();
+  // Cleanup old entries
+  for (const [k, t] of recentMessageIds) {
+    if (now - t > DEDUP_TTL_MS) recentMessageIds.delete(k);
+  }
+  if (recentMessageIds.has(id)) return true;
+  recentMessageIds.set(id, now);
+  return false;
+}
+
+// Push with retry (3 attempts, exponential backoff)
+async function pushWithRetry(
+  url: string, secret: string, payload: Record<string, unknown>,
+  logger: { warn: (msg: string) => void; info: (msg: string) => void },
+): Promise<void> {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (resp.ok) {
+        logger.info(`[custom-webhook] Push success (attempt ${attempt})`);
+        return;
+      }
+      logger.warn(`[custom-webhook] Push HTTP ${resp.status} (attempt ${attempt}/${maxAttempts})`);
+    } catch (err) {
+      logger.warn(`[custom-webhook] Push error (attempt ${attempt}/${maxAttempts}): ${err}`);
+    }
+    if (attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+    }
+  }
+  logger.warn(`[custom-webhook] Push failed after ${maxAttempts} attempts`);
+}
+
+// Cleanup temp files
+function cleanupTempFiles(paths: string[]): void {
+  if (paths.length === 0) return;
+  import("node:fs").then((fs) => {
+    for (const p of paths) {
+      try { fs.unlinkSync(p); } catch {}
+    }
+  }).catch(() => {});
+}
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -38,6 +94,22 @@ const plugin = {
 
     api.logger.info(`[custom-webhook] Registering HTTP route at ${WEBHOOK_PATH}`);
 
+    // Health endpoint
+    api.registerHttpRoute({
+      path: HEALTH_PATH,
+      auth: "none",
+      handler: async (_req: IncomingMessage, res: ServerResponse) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          ok: true,
+          plugin: "custom-webhook",
+          version: "1.4.0",
+          uptime: process.uptime(),
+          timestamp: Date.now(),
+        }));
+      },
+    });
+
     api.registerHttpRoute({
       path: WEBHOOK_PATH,
       auth: "plugin",
@@ -60,6 +132,14 @@ const plugin = {
           const rawText = body.text ?? body.message ?? body.content ?? "";
           const isGroup = body.isGroup ?? body.is_group ?? false;
           const messageId = body.messageId ?? body.message_id ?? `wh-${Date.now()}`;
+          const asyncMode = body.async === true;
+
+          // Dedup check
+          if (isDuplicate(messageId)) {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true, deduplicated: true, messageId }));
+            return;
+          }
 
           // Parse attachments: [{type: "image", url: "..."}, {type: "file", url: "...", name: "..."}]
           const attachments: Array<{type?: string; url: string; name?: string}> =
@@ -77,6 +157,27 @@ const plugin = {
           }
 
           api.logger.info(`[custom-webhook] Received from ${senderId}: ${text.slice(0, 100)}`);
+
+          // Async mode: return 202 immediately, process in background
+          if (asyncMode) {
+            if (!pushUrl) {
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: "async mode requires pushUrl in config" }));
+              return;
+            }
+            res.writeHead(202, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true, async: true, messageId }));
+            // Continue processing in background (no await)
+            processMessage().catch((err) =>
+              api.logger.error(`[custom-webhook] Async processing error: ${err}`)
+            );
+            return;
+          }
+
+          await processMessage();
+          return;
+
+          async function processMessage() {
 
           // Route message into OpenClaw agent pipeline (like qqbot/feishu)
           const pluginRuntime = getCustomWebhookRuntime();
@@ -213,30 +314,22 @@ const plugin = {
 
           const agentReply = replyChunks.join("\n");
 
-          // 7. Push agent reply to external service
+          // 7. Cleanup temp media files
+          cleanupTempFiles(mediaPaths);
+
+          // 8. Push agent reply to external service (with retry)
           if (pushUrl) {
-            try {
-              await fetch(pushUrl, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  ...(pushSecret ? { Authorization: `Bearer ${pushSecret}` } : {}),
-                },
-                body: JSON.stringify({
-                  type: "agent_reply",
-                  senderId,
-                  chatId,
-                  reply: agentReply,
-                  ...(replyMedia.length > 0 ? { attachments: replyMedia } : {}),
-                  timestamp: Date.now(),
-                }),
-              });
-            } catch (err) {
-              api.logger.warn(`[custom-webhook] Push error: ${err}`);
-            }
+            await pushWithRetry(pushUrl, pushSecret, {
+              type: "agent_reply",
+              senderId,
+              chatId,
+              reply: agentReply,
+              ...(replyMedia.length > 0 ? { attachments: replyMedia } : {}),
+              timestamp: Date.now(),
+            }, api.logger);
           }
 
-          // 8. Record outbound activity
+          // 9. Record outbound activity
           pluginRuntime.channel.activity.record({
             channel: "custom-webhook",
             accountId: "default",
@@ -252,10 +345,13 @@ const plugin = {
               timestamp: Date.now(),
             }),
           );
+          } // end processMessage
         } catch (err) {
           api.logger.error(`[custom-webhook] Handler error: ${err}`);
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Internal error", message: String(err) }));
+          if (!res.headersSent) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Internal error", message: String(err) }));
+          }
         }
       },
     });
