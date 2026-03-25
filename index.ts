@@ -378,7 +378,7 @@ const plugin = {
     // Health endpoint
     api.registerHttpRoute({
       path: HEALTH_PATH,
-      auth: "none",
+      auth: "plugin",
       handler: async (_req: IncomingMessage, res: ServerResponse) => {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
@@ -394,7 +394,7 @@ const plugin = {
     // Web Chat Panel
     api.registerHttpRoute({
       path: PANEL_PATH,
-      auth: "none",
+      auth: "plugin",
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         const host = `http://${req.headers.host ?? "localhost:18789"}`;
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
@@ -405,7 +405,7 @@ const plugin = {
     // OpenAPI Spec
     api.registerHttpRoute({
       path: OPENAPI_PATH,
-      auth: "none",
+      auth: "plugin",
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         const host = `http://${req.headers.host ?? "localhost:18789"}`;
         res.writeHead(200, {
