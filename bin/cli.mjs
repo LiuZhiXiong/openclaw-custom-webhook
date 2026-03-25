@@ -295,6 +295,11 @@ async function install() {
   }
 
   try {
+    const pDir = path.join(OPENCLAW_DIR, "extensions", "custom-webhook");
+    if (fs.existsSync(pDir)) {
+      warn("发现旧版本插件，正在清理以全新安装...");
+      fs.rmSync(pDir, { recursive: true, force: true });
+    }
     execSync("openclaw plugins install openclaw-custom-webhook", {
       encoding: "utf-8",
       stdio: ["inherit", "inherit", "inherit"],

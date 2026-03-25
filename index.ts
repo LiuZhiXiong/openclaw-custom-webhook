@@ -712,7 +712,7 @@ const plugin = {
         res.end(JSON.stringify({
           ok: true,
           plugin: "custom-webhook",
-          version: "1.4.0",
+          version: "1.6.5",
           uptime: process.uptime(),
           timestamp: Date.now(),
         }));
