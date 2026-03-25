@@ -70,10 +70,13 @@ export const customWebhookPlugin: ChannelPlugin = {
     displayName: "Custom Webhook",
     description: "HTTP webhook channel for external integrations",
   },
+  config: {
+    listAccountIds: (cfg: OpenClawConfig) => listAccountIds(cfg),
+  },
   accounts: {
-    resolveAccountId: ({ accountId }) => accountId?.trim() || DEFAULT_ACCOUNT_ID,
-    listAccountIds: ({ cfg }) => listAccountIds(cfg),
-    resolveAccountSnapshot: ({ cfg, accountId }) => {
+    resolveAccountId: ({ accountId }: any) => accountId?.trim() || DEFAULT_ACCOUNT_ID,
+    listAccountIds: ({ cfg }: any) => listAccountIds(cfg),
+    resolveAccountSnapshot: ({ cfg, accountId }: any) => {
       const account = resolveAccount(cfg, accountId);
       return {
         accountId: account.accountId,
