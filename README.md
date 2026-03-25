@@ -1,133 +1,132 @@
-# openclaw-custom-webhook
+# 🦞 openclaw-custom-webhook
 
-Custom HTTP Webhook channel plugin for [OpenClaw](https://github.com/openclaw/openclaw).  
-通过 HTTP 接口收发消息，让任何系统都能接入 AI Agent。
+Custom HTTP Webhook channel plugin for [OpenClaw](https://github.com/openclaw/openclaw) — connect any HTTP client, bot, or automation to AI agents.
 
-## 一键安装
+[![npm version](https://img.shields.io/npm/v/openclaw-custom-webhook.svg)](https://www.npmjs.com/package/openclaw-custom-webhook)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+## ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🖥 **Web 测试面板** | 内置深色主题聊天 UI，浏览器直接测试 Agent |
+| 💬 **消息历史** | localStorage 持久化，刷新页面不丢失 |
+| 📋 **OpenAPI 文档** | 自动生成 3.0.3 标准 API 文档 |
+| ⚡ **异步模式** | `async: true` 返回 202，后台处理并推送结果 |
+| 🔄 **消息去重** | 5 分钟 TTL 缓存，防重复消息 |
+| 🔁 **推送重试** | 3 次指数退避重试（1s → 2s → 4s） |
+| 🖼 **多媒体支持** | 图片/文件自动下载 → Agent 视觉管道 |
+| 🏥 **健康检查** | `/health` 端点实时监控 |
+| 🗑 **一键卸载** | `uninstall` 命令清理全部配置和文件 |
+
+## 🚀 Quick Start
 
 ```bash
 npx openclaw-custom-webhook install
 ```
 
-自动完成：安装插件 → 修复 SDK 链接 → 配置密钥 → 重启 Gateway。
+一键完成：安装插件 → 修复 SDK → 配置密钥 → 重启 Gateway
 
-## 手动安装
+安装完成后，打开浏览器访问：
 
-```bash
-# 1. 安装插件
-openclaw plugins install openclaw-custom-webhook
-
-# 2. 修复 SDK（全局安装用户需要）
-npx openclaw-custom-webhook fix-sdk
-
-# 3. 配置
-npx openclaw-custom-webhook setup
-
-# 4. 重启
-openclaw gateway restart
+```
+http://localhost:18789/api/plugins/custom-webhook/panel
 ```
 
-## 发消息
+## 📡 API Endpoints
 
-```bash
-curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-secret-token" \
-  -d '{"senderId":"user1","text":"你好！"}'
-```
+| 端点 | 说明 |
+|------|------|
+| `POST /api/plugins/custom-webhook/webhook` | 发送消息给 Agent |
+| `GET /api/plugins/custom-webhook/panel` | Web 聊天测试面板 |
+| `GET /api/plugins/custom-webhook/openapi.json` | OpenAPI 3.0 文档 |
+| `GET /api/plugins/custom-webhook/health` | 健康检查 |
 
-**回复：**
-
-```json
-{
-  "ok": true,
-  "reply": "你好！有什么可以帮你的？",
-  "timestamp": 1774290802998
-}
-```
-
-## 发送图片
+### 发送消息
 
 ```bash
 curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-secret-token" \
+  -H "Authorization: Bearer YOUR_SECRET" \
   -d '{
     "senderId": "user1",
-    "text": "这张图片里是什么？",
-    "attachments": [
-      {"type": "image", "url": "https://example.com/photo.jpg"}
-    ]
+    "chatId": "user1",
+    "text": "你好，请介绍一下自己"
   }'
 ```
 
-图片会自动下载并通过 OpenClaw 的 media understanding 管道传给 Agent 进行视觉分析。
-
-## API 参考
-
-### `POST /api/plugins/custom-webhook/webhook`
-
-**Headers:**
-
-| Header | 必填 | 说明 |
-|--------|------|------|
-| `Authorization` | ✅ | `Bearer <receiveSecret>` |
-| `Content-Type` | ✅ | `application/json` |
-
-**请求体：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `senderId` | string | ✅ | 发送者标识 |
-| `text` | string | ✅ | 消息内容 |
-| `chatId` | string | ❌ | 会话 ID（默认等于 senderId） |
-| `attachments` | array | ❌ | 附件列表（见下方） |
-| `isGroup` | boolean | ❌ | 是否群聊（默认 false） |
-| `messageId` | string | ❌ | 消息 ID（用于去重） |
-
-**附件格式：**
-
-```json
-[
-  {"type": "image", "url": "https://example.com/photo.jpg"},
-  {"type": "file", "url": "https://example.com/doc.pdf", "name": "report.pdf"}
-]
-```
-
-**成功响应 (200)：**
+### 响应示例
 
 ```json
 {
   "ok": true,
-  "reply": "Agent 的回复文本",
-  "attachments": [{"type": "image", "url": "...", "text": "描述"}],
-  "timestamp": 1774290802998
+  "reply": "你好！我是 AI 助手...",
+  "timestamp": 1711234567890
 }
 ```
 
-**错误响应：**
-- `401` — 认证失败
-- `500` — 内部处理错误
+### 异步模式
 
-## 配置项
+```bash
+curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_SECRET" \
+  -d '{
+    "senderId": "user1",
+    "text": "分析这份文档",
+    "async": true
+  }'
+```
 
-| 字段 | 说明 |
-|------|------|
-| `receiveSecret` | 接收消息的 Bearer Token（必填） |
-| `pushUrl` | Agent 回复的推送地址（选填） |
-| `pushSecret` | 推送时使用的 Bearer Token（选填） |
+返回 `202 Accepted`，Agent 处理完后推送到 `pushUrl`。
 
-配置文件位置：`~/.openclaw/openclaw.json`
+### 带附件消息
 
 ```json
 {
+  "senderId": "user1",
+  "text": "这张图片是什么？",
+  "attachments": [
+    { "type": "image", "url": "https://example.com/photo.jpg" }
+  ]
+}
+```
+
+## 🎛 CLI Commands
+
+```bash
+npx openclaw-custom-webhook [command]
+```
+
+| 分类 | 命令 | 说明 |
+|------|------|------|
+| **安装** | `install` | 一键安装（插件 + SDK + 配置 + 重启） |
+| | `uninstall` | 完整卸载（目录 + 配置全清） |
+| | `fix-sdk` | 修复 plugin-sdk symlink |
+| **配置** | `setup` | 交互式配置密钥 |
+| | `status` | 查看插件状态、配置和端点 |
+| **使用** | `test` | 发送测试消息 |
+| | `open` | 在浏览器打开 Web 面板 |
+
+## ⚙️ Configuration
+
+配置存储在 `~/.openclaw/openclaw.json`：
+
+```json
+{
+  "plugins": {
+    "allow": ["custom-webhook"],
+    "entries": {
+      "custom-webhook": { "enabled": true }
+    }
+  },
   "channels": {
     "custom-webhook": {
       "accounts": {
         "default": {
-          "receiveSecret": "your-secret-token",
-          "pushUrl": "http://your-backend.com/receive",
-          "pushSecret": "your-push-secret"
+          "receiveSecret": "your-secret-key",
+          "pushUrl": "https://your-server.com/webhook",
+          "pushSecret": "push-auth-token"
         }
       }
     }
@@ -135,101 +134,85 @@ curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
 }
 ```
 
-## 推送通知
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| `receiveSecret` | 是 | Bearer token，用于验证入站请求 |
+| `pushUrl` | 否 | Agent 回复推送地址（异步模式必填） |
+| `pushSecret` | 否 | 推送请求的 Authorization header |
 
-配置了 `pushUrl` 后，Agent 回复会自动推送到你的后端：
+## 🖥 Web 测试面板
 
-```json
-{
-  "type": "reply",
-  "to": "custom-webhook:chat1",
-  "text": "Agent 的回复",
-  "timestamp": 1774290802998
-}
-```
+面板地址：`http://localhost:18789/api/plugins/custom-webhook/panel`
 
-媒体回复推送格式：
+**特性：**
+- 🌑 深色玻璃拟态 UI
+- 💾 聊天历史浏览器端持久化（最近 200 条）
+- 🟢 实时 Gateway 健康状态
+- ⚙️ Secret / Sender / Async 配置
+- 🗑 一键清空聊天
+- 📱 响应式设计
 
-```json
-{
-  "type": "media",
-  "to": "custom-webhook:chat1",
-  "text": "描述文字",
-  "mediaUrl": "https://...",
-  "timestamp": 1774290802998
-}
-```
-
-## CLI 命令
+**快捷打开：**
 
 ```bash
-npx openclaw-custom-webhook install    # 一键安装（推荐）
-npx openclaw-custom-webhook setup      # 仅配置密钥
-npx openclaw-custom-webhook test       # 发送测试消息
-npx openclaw-custom-webhook fix-sdk    # 修复 plugin-sdk 链接
+npx openclaw-custom-webhook open
 ```
 
-## 功能特性
+## 🔧 Troubleshooting
 
-- ✅ 一键安装，自动配置
-- ✅ 完整 OpenClaw Agent 管道集成
-- ✅ 多轮对话，上下文保持
-- ✅ 图片/文件附件支持（Agent 视觉分析）
-- ✅ Bearer Token 认证
-- ✅ 异步推送通知
-- ✅ 支持 npm / pnpm / nvm / fnm / volta / homebrew 等安装方式
-- ✅ 兼容任何 HTTP 客户端（curl、Postman、你的应用）
+### 插件 ID 不匹配警告
 
-## 故障排查
+```
+plugin id mismatch (manifest uses "custom-webhook", entry hints "openclaw-custom-webhook")
+```
 
-### 发消息返回 "not found"
+这是无害警告，不影响功能。
 
-1. **重启 Gateway**：安装插件后必须重启
-   ```bash
-   openclaw gateway restart
-   ```
+### Gateway 须绑定外网
 
-2. **确认插件加载**：检查启动日志是否有
-   ```
-   [custom-webhook] Registering HTTP route at /api/plugins/custom-webhook/webhook
-   ```
-
-3. **带调试日志启动**：
-   ```bash
-   OPENCLAW_PLUGIN_LOADER_DEBUG_STACKS=1 openclaw gateway run --force
-   ```
-
-### 找不到 plugin-sdk
+如需外部访问，启动 Gateway 时指定：
 
 ```bash
-# 方式一：一键修复
+openclaw gateway run --bind 0.0.0.0 --port 18789
+```
+
+### SDK 链接问题
+
+```bash
 npx openclaw-custom-webhook fix-sdk
-
-# 方式二：手动创建 symlink
-mkdir -p ~/.openclaw/extensions/custom-webhook/node_modules
-ln -sf $(npm root -g)/openclaw ~/.openclaw/extensions/custom-webhook/node_modules/openclaw
 ```
 
-### 外部机器访问
-
-Gateway 默认绑定 loopback，从外部访问需要：
+### 完整卸载
 
 ```bash
-openclaw gateway run --bind 0.0.0.0 --port 18789 --force
+npx openclaw-custom-webhook uninstall
 ```
 
-## Demo 后端
+## 📝 Changelog
 
-`examples/demo-backend/` 目录包含一个完整的 Express.js 参考实现，支持：
+### v1.6.0
+- 🎨 全新 glassmorphism Web 面板 UI
+- 💾 localStorage 消息历史持久化
+- 🗑 清空聊天 + Secret 记忆功能
+- 📊 消息计数 + 格式化运行时间
+- 📤 SVG 发送按钮 + 响应式设计
 
-- `/send` — 发消息给 Agent（支持附件）
-- `/receive` — 接收 Agent 推送回复
-- `/history` — 查看消息历史
+### v1.5.2
+- ➕ `open` 命令打开 Web 面板
+- ➕ `status` 命令查看插件状态
+- ➕ `uninstall` 命令完整卸载
+- 🎨 安装完成提示显示所有端点 URL
 
-```bash
-cd examples/demo-backend && npm install && npm start
-```
+### v1.5.0
+- 🖥 Web 测试面板 + OpenAPI 文档端点
 
-## License
+### v1.4.0
+- ⚡ 异步处理模式
+- 🔄 消息去重
+- 🔁 推送重试
+- 🏥 健康检查端点
+- 🖼 多媒体视觉管道 + 临时文件清理
+
+## 📄 License
 
 MIT
