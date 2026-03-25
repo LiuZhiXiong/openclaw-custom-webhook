@@ -119,110 +119,336 @@ function getPanelHtml(webhookUrl: string) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Custom Webhook - OpenClaw</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<title>SYS.TERMINAL // CUSTOM WEBHOOK</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg:#060a14;--surface:rgba(17,24,39,.85);--surface2:rgba(30,41,59,.6);
-  --glass:rgba(255,255,255,.03);--border:rgba(30,58,95,.5);--border2:rgba(0,212,255,.15);
-  --text:#e2e8f0;--text2:#64748b;--text3:#475569;
-  --cyan:#00d4ff;--cyan2:#0891b2;--blue:#3b82f6;--purple:#8b5cf6;
-  --green:#22c55e;--red:#ef4444;
-  --glow:0 0 20px rgba(0,212,255,.1);--font:'Inter',system-ui,-apple-system,sans-serif
+:root {
+  --bg: #030407;
+  --surface: #0a0b10;
+  --panel: #0d0f16;
+  --border: #1e2230;
+  --text-main: #e2e8f0;
+  --text-muted: #64748b;
+  --accent: #FF5A00;
+  --accent-dim: rgba(255, 90, 0, 0.15);
+  --teal: #00F2FE;
+  --teal-dim: rgba(0, 242, 254, 0.1);
+  --green: #00FF66;
+  --red: #FF003C;
+  --font-ui: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
-body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
-body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 20% 50%,rgba(0,212,255,.04) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(59,130,246,.03) 0%,transparent 50%);pointer-events:none;z-index:0}
+* { margin:0; padding:0; box-sizing:border-box; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-header{background:var(--surface);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:14px;flex-shrink:0;z-index:10;position:relative}
-.logo{display:flex;align-items:center;gap:10px}
-.logo-icon{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--cyan),var(--blue));display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 2px 8px rgba(0,212,255,.25)}
-header h1{font-size:15px;font-weight:600;background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.3px}
-header .sub{font-size:11px;color:var(--text3);font-weight:400;margin-top:1px}
-.status-pill{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--glass);border:1px solid var(--border);font-size:11px;color:var(--text2)}
-.status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);transition:all .3s}
-.status-dot.off{background:var(--red);box-shadow:0 0 8px var(--red)}
-header .spacer{flex:1}
-.nav{display:flex;gap:6px}
-.nav a,.nav button{color:var(--text2);text-decoration:none;font-family:var(--font);font-size:11px;padding:5px 12px;border:1px solid var(--border);border-radius:8px;transition:all .25s;cursor:pointer;background:transparent}
-.nav a:hover,.nav button:hover{color:var(--cyan);border-color:var(--cyan);background:rgba(0,212,255,.05);transform:translateY(-1px)}
+body { 
+  font-family: var(--font-ui); 
+  background: var(--bg); 
+  color: var(--text-main); 
+  height: 100vh; 
+  display: flex; 
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
 
-.config-bar{background:var(--surface);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;gap:12px;align-items:center;flex-shrink:0;flex-wrap:wrap;z-index:5;position:relative}
-.config-bar label{font-size:11px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.5px}
-.config-bar input{font-family:var(--font);font-size:12px;background:rgba(15,23,42,.8);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);outline:none;transition:all .25s}
-.config-bar input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,212,255,.1)}
-.config-bar input.secret{width:180px}
-.config-bar input.sender{width:100px}
-.cfg-toggle{display:flex;align-items:center;gap:5px;cursor:pointer}
-.cfg-toggle input[type=checkbox]{accent-color:var(--cyan);cursor:pointer}
-.cfg-toggle label{cursor:pointer}
-.msg-count{font-size:10px;color:var(--text3);margin-left:auto}
+/* Subtle Grid Background */
+body::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 32px 32px; background-position: center bottom;
+  opacity: 0.1; z-index: 0; pointer-events: none;
+}
 
-.messages{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:16px;scroll-behavior:smooth;z-index:1;position:relative}
-.messages::-webkit-scrollbar{width:4px}
-.messages::-webkit-scrollbar-track{background:transparent}
-.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+/* Base Shadow & Glow */
+body::after {
+  content: ''; position: absolute; bottom: -50vh; left: 50%; width: 80vw; height: 80vh;
+  background: radial-gradient(ellipse, rgba(0, 242, 254, 0.05) 0%, transparent 60%);
+  transform: translateX(-50%); pointer-events: none; z-index: 0;
+}
 
-.msg-row{display:flex;gap:10px;animation:fadeIn .35s cubic-bezier(.4,0,.2,1)}
-.msg-row.user{flex-direction:row-reverse}
-.avatar{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;font-weight:600}
-.avatar.user-av{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff}
-.avatar.agent-av{background:linear-gradient(135deg,var(--cyan),var(--green));color:#fff}
-.msg-bubble{max-width:70%;padding:12px 16px;border-radius:14px;font-size:13.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;position:relative}
-.msg-row.user .msg-bubble{background:linear-gradient(135deg,rgba(59,130,246,.85),rgba(8,145,178,.85));color:#fff;border-bottom-right-radius:4px;box-shadow:0 2px 12px rgba(59,130,246,.2)}
-.msg-row.agent .msg-bubble{background:var(--surface2);backdrop-filter:blur(8px);border:1px solid var(--border);border-bottom-left-radius:4px;box-shadow:var(--glow)}
-.msg-bubble .meta{font-size:10px;margin-top:6px;opacity:.5}
-.msg.system{align-self:center;background:transparent;color:var(--text3);font-size:12px;padding:8px 16px;text-align:center}
-.msg.error{align-self:center;background:rgba(59,17,17,.6);color:var(--red);font-size:12px;border:1px solid rgba(92,28,28,.5);border-radius:10px;padding:8px 16px;backdrop-filter:blur(8px)}
+.terminal-container {
+  width: 100%; max-width: 1200px;
+  height: 100vh; display: flex; flex-direction: column;
+  position: relative; z-index: 1;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  box-shadow: 0 0 120px rgba(0,0,0,0.6);
+}
 
-.typing-row{display:flex;gap:10px;animation:fadeIn .3s}
-.typing-bubble{padding:12px 18px;background:var(--surface2);border:1px solid var(--border);border-radius:14px;border-bottom-left-radius:4px}
-.typing-bubble span{display:inline-block;width:7px;height:7px;background:var(--text3);border-radius:50%;animation:bounce .6s infinite alternate;margin:0 2px}
-.typing-bubble span:nth-child(2){animation-delay:.15s}
-.typing-bubble span:nth-child(3){animation-delay:.3s}
-@keyframes bounce{to{transform:translateY(-8px);opacity:.3}}
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+/* Header */
+header {
+  padding: 16px 32px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(10, 11, 16, 0.85);
+  backdrop-filter: blur(12px);
+  position: relative;
+}
+header::after {
+  content:''; position: absolute; bottom:-1px; left:0; width: 40px; height: 1px; background: var(--accent);
+}
+.header-brand { display: flex; align-items: center; gap: 16px; }
+.brand-icon {
+  width: 40px; height: 40px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-weight: 700; font-size: 18px;
+  box-shadow: 0 0 15px var(--accent-dim);
+}
+.brand-title { display: flex; flex-direction: column; }
+.brand-title h1 {
+  font-family: var(--font-mono); font-size: 15px; font-weight: 700;
+  color: var(--text-main); letter-spacing: 1.5px;
+}
+.brand-title span {
+  font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); letter-spacing: 0.5px;
+}
+.header-actions { display: flex; gap: 10px; align-items: center; }
+.status-indicator {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--green);
+  text-transform: uppercase; border: 1px solid rgba(0,255,102,0.25);
+  padding: 4px 12px; background: rgba(0,255,102,0.05); letter-spacing: 0.5px;
+}
+.status-indicator::before {
+  content: ''; width: 6px; height: 6px; background: var(--green); border-radius: 50%;
+  box-shadow: 0 0 8px var(--green);
+}
+.status-indicator.offline {
+  color: var(--red); border-color: rgba(255,0,60,0.25); background: rgba(255,0,60,0.05);
+}
+.status-indicator.offline::before {
+  background: var(--red); box-shadow: 0 0 8px var(--red);
+}
+.btn-action {
+  background: var(--panel); border: 1px solid var(--border);
+  color: var(--text-muted); font-family: var(--font-mono); font-size: 11px;
+  padding: 6px 14px; cursor: pointer; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none; display: flex; align-items: center; gap: 6px;
+}
+.btn-action:hover {
+  border-color: var(--teal); color: var(--teal); background: var(--teal-dim); box-shadow: 0 0 10px var(--teal-dim);
+}
+.btn-danger:hover {
+  border-color: var(--red); color: var(--red); background: rgba(255,0,60,0.1); box-shadow: 0 0 10px rgba(255,0,60,0.1);
+}
 
-.input-bar{background:var(--surface);backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:14px 24px;display:flex;gap:10px;flex-shrink:0;z-index:10;position:relative}
-.input-bar textarea{flex:1;font-family:var(--font);font-size:13.5px;background:rgba(15,23,42,.8);border:1px solid var(--border);border-radius:12px;padding:11px 16px;color:var(--text);outline:none;resize:none;height:44px;max-height:120px;transition:all .25s;line-height:1.4}
-.input-bar textarea:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
-.input-bar textarea::placeholder{color:var(--text3)}
-.send-btn{width:44px;height:44px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--cyan),var(--blue));color:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 2px 10px rgba(0,212,255,.25)}
-.send-btn:hover{transform:scale(1.05);box-shadow:0 4px 16px rgba(0,212,255,.35)}
-.send-btn:active{transform:scale(.95)}
-.send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
-.send-btn svg{width:18px;height:18px}
-@media(max-width:640px){.nav a,.nav button{padding:4px 8px;font-size:10px}.config-bar{padding:8px 16px;gap:8px}.messages{padding:16px}.msg-bubble{max-width:85%}.input-bar{padding:10px 16px}}
+/* Config Bar */
+.config-bar {
+  display: flex; align-items: center; gap: 24px;
+  padding: 12px 32px; border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-family: var(--font-mono); font-size: 11px;
+  flex-wrap: wrap; box-shadow: 0 4px 20px rgba(0,0,0,0.4); z-index: 10;
+}
+.config-item { display: flex; align-items: center; gap: 10px; }
+.config-item label { color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.config-item input[type="text"], .config-item input[type="password"] {
+  background: var(--panel); border: 1px solid var(--border);
+  color: var(--teal); font-family: var(--font-mono); font-size: 12px;
+  padding: 6px 12px; width: 140px; transition: border-color 0.2s;
+  outline: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+.config-item input:focus {
+  border-color: var(--teal); box-shadow: 0 0 0 2px var(--teal-dim), inset 0 2px 4px rgba(0,0,0,0.2);
+}
+.config-item.sender-input input { width: 120px; color: var(--accent); }
+
+/* Custom Checkbox */
+.toggle-switch { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-muted); }
+.toggle-switch input { display: none; }
+.toggle-slider {
+  width: 32px; height: 16px; background: var(--panel); border: 1px solid var(--border);
+  position: relative; transition: all 0.2s; border-radius: 2px;
+}
+.toggle-slider::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px;
+  background: var(--text-muted); transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toggle-switch input:checked + .toggle-slider {
+  border-color: var(--teal); background: var(--teal-dim);
+}
+.toggle-switch input:checked + .toggle-slider::after {
+  background: var(--teal); left: 18px; box-shadow: 0 0 5px var(--teal);
+}
+.msg-stats { margin-left: auto; color: var(--text-muted); opacity: 0.7; }
+
+/* Messages Area */
+.messages-wrapper {
+  flex: 1; overflow-y: auto; padding: 40px 32px;
+  display: flex; flex-direction: column; gap: 28px;
+  scroll-behavior: smooth;
+}
+
+.msg-block {
+  display: flex; flex-direction: column; max-width: 80%;
+  animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0; transform: translateY(15px);
+}
+@keyframes slideIn { to { opacity: 1; transform: translateY(0); } }
+
+.msg-block.user { align-self: flex-end; }
+.msg-block.agent { align-self: flex-start; }
+
+.msg-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  font-family: var(--font-mono); font-size: 11px;
+}
+.msg-block.user .msg-header { flex-direction: row-reverse; }
+
+.sender-label {
+  padding: 2px 8px; background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500;
+}
+.msg-block.user .sender-label { color: var(--accent); border-color: rgba(255, 90, 0, 0.3); background: rgba(255, 90, 0, 0.03); }
+.msg-block.agent .sender-label { color: var(--teal); border-color: rgba(0, 242, 254, 0.3); background: rgba(0, 242, 254, 0.03); }
+
+.msg-time { color: var(--text-muted); opacity: 0.6; }
+
+.msg-content {
+  background: var(--surface); padding: 18px 24px;
+  font-size: 15px; line-height: 1.6; color: var(--text-main);
+  border: 1px solid var(--border);
+  white-space: pre-wrap; word-break: break-word; font-weight: 300;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+.msg-block.user .msg-content {
+  border-right: 2px solid var(--accent);
+  background: linear-gradient(90deg, var(--surface) 0%, rgba(255, 90, 0, 0.02) 100%);
+}
+.msg-block.agent .msg-content {
+  border-left: 2px solid var(--teal);
+  background: linear-gradient(90deg, rgba(0, 242, 254, 0.02) 0%, var(--surface) 100%);
+}
+
+.msg-system {
+  align-self: center; font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); padding: 8px 16px; border: 1px dashed var(--border);
+  margin: 12px 0; text-align: center; max-width: 65%; background: var(--surface);
+  letter-spacing: 0.5px;
+}
+.msg-error {
+  align-self: center; font-family: var(--font-mono); font-size: 12px;
+  color: var(--red); padding: 10px 20px; border: 1px solid rgba(255,0,60,0.4);
+  background: rgba(255,0,60,0.05); margin: 12px 0; max-width: 85%;
+  box-shadow: 0 0 15px rgba(255,0,60,0.1);
+}
+
+/* Typing Indicator */
+.typing-content {
+  display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); color: var(--teal); font-size: 13px; font-weight: 400; font-style: italic; letter-spacing: 0.5px;
+}
+.cursor-blink {
+  display: inline-block; width: 8px; height: 16px; background: var(--teal);
+  animation: blink 0.9s step-end infinite; box-shadow: 0 0 8px var(--teal);
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* Input Area */
+.input-zone {
+  padding: 24px 32px; background: rgba(10, 11, 16, 0.9);
+  border-top: 1px solid var(--border);
+  position: relative; backdrop-filter: blur(12px);
+}
+.input-zone::before { content: ''; position: absolute; top: -1px; left: 0; width: 40px; height: 1px; background: var(--teal); }
+.input-zone::after { content: ''; position: absolute; top: -1px; right: 0; width: 40px; height: 1px; background: var(--accent); }
+
+.input-wrapper {
+  display: flex; gap: 16px; align-items: flex-end;
+  background: var(--bg); border: 1px solid var(--border);
+  padding: 16px 20px; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: inset 0 4px 12px rgba(0,0,0,0.3);
+}
+.input-wrapper.focus { border-color: rgba(226, 232, 240, 0.2); }
+
+.input-prefix { font-family: var(--font-mono); color: var(--accent); font-size: 16px; padding-bottom: 3px; font-weight: 700; }
+textarea {
+  flex: 1; background: transparent; border: none; outline: none;
+  font-family: var(--font-ui); font-size: 15px; color: var(--text-main); font-weight: 300;
+  resize: none; line-height: 1.6; padding: 2px 0;
+  height: 24px; max-height: 240px;
+}
+textarea::placeholder { color: var(--text-muted); font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.5px; }
+
+.send-btn {
+  background: var(--text-main); color: var(--bg);
+  border: none; padding: 8px 20px; font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+  text-transform: uppercase; cursor: pointer; display: flex; align-items: center; gap: 8px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); height: 36px; letter-spacing: 1px;
+}
+.send-btn:hover { background: var(--accent); color: #fff; box-shadow: 0 0 20px var(--accent-dim); transform: translateY(-1px); }
+.send-btn:active { transform: translateY(1px); }
+.send-btn:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; box-shadow: none; transform: none; }
+
+@media (max-width: 768px) {
+  .config-bar { padding: 12px 20px; gap: 12px; }
+  .config-item label { min-width: auto; }
+  .msg-block { max-width: 95%; }
+  .input-zone { padding: 16px 20px; }
+  header { padding: 16px 20px; }
+}
 </style>
 </head>
 <body>
-<header>
-  <div class="logo"><div class="logo-icon">\u{1F99E}</div><div><h1>Custom Webhook Tester</h1><div class="sub">OpenClaw Plugin v1.5</div></div></div>
-  <div class="status-pill"><div class="status-dot" id="status"></div><span id="statusText">\u68C0\u67E5\u4E2D...</span></div>
-  <div class="spacer"></div>
-  <div class="nav">
-    <a href="${OPENAPI_PATH}" target="_blank">\u{1F4CB} API</a>
-    <a href="https://github.com/LiuZhiXiong/openclaw-custom-webhook" target="_blank">\u2B50 GitHub</a>
-    <button onclick="clearChat()" title="\u6E05\u7A7A\u804A\u5929">\u{1F5D1}</button>
+<div class="terminal-container">
+  <header>
+    <div class="header-brand">
+      <div class="brand-icon">\u271A</div>
+      <div class="brand-title">
+        <h1>SYS.WEBHOOK_TESTER</h1>
+        <span>OPENCLAW PLUGIN [v1.6]</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="status-indicator" id="status"><span id="statusText">PROBING...</span></div>
+      <a href="\${OPENAPI_PATH}" target="_blank" class="btn-action">DOCS.JSON</a>
+      <a href="https://github.com/LiuZhiXiong/openclaw-custom-webhook" target="_blank" class="btn-action">REPO.SRC</a>
+      <button class="btn-action btn-danger" onclick="clearChat()">PURGE.LOG</button>
+    </div>
+  </header>
+
+  <div class="config-bar">
+    <div class="config-item">
+      <label>AUTH.TOKEN</label>
+      <input type="password" spellcheck="false" id="secret" placeholder="Bearer...">
+    </div>
+    <div class="config-item sender-input">
+      <label>USER.ID</label>
+      <input type="text" spellcheck="false" id="sender" value="SYS_ADMIN">
+    </div>
+    <div class="config-item">
+      <label class="toggle-switch">
+        <input type="checkbox" id="async">
+        <div class="toggle-slider"></div>
+        ASYNC.MODE
+      </label>
+    </div>
+    <div class="msg-stats" id="msgCount">RECORDS: 0</div>
   </div>
-</header>
-<div class="config-bar">
-  <label>Secret</label>
-  <input type="password" class="secret" id="secret" placeholder="Bearer token">
-  <label>Sender</label>
-  <input type="text" class="sender" id="sender" placeholder="user1" value="panel-user">
-  <div class="cfg-toggle"><input type="checkbox" id="async"><label for="async">Async</label></div>
-  <span class="msg-count" id="msgCount">0 \u6761\u6D88\u606F</span>
+
+  <div class="messages-wrapper" id="messages"></div>
+
+  <div class="input-zone">
+    <div class="input-wrapper" id="inputWrapper">
+      <div class="input-prefix">&gt;</div>
+      <textarea id="input" placeholder="Input command or query. [ENTER] to execute, [SHIFT+ENTER] for newline..." rows="1"></textarea>
+      <button class="send-btn" id="send">EXECUTE \u23CE</button>
+    </div>
+  </div>
 </div>
-<div class="messages" id="messages"></div>
-<div class="input-bar">
-  <textarea id="input" placeholder="\u8F93\u5165\u6D88\u606F... (Enter \u53D1\u9001, Shift+Enter \u6362\u884C)" rows="1"></textarea>
-  <button class="send-btn" id="send" title="\u53D1\u9001"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
-</div>
+
 <script>
-const webhookUrl="${webhookUrl}";
+const webhookUrl="\${webhookUrl}";
 const msgsEl=document.getElementById("messages");
 const input=document.getElementById("input");
+const inputWrapper=document.getElementById("inputWrapper");
 const sendBtn=document.getElementById("send");
 const secretInput=document.getElementById("secret");
 const senderInput=document.getElementById("sender");
@@ -231,7 +457,7 @@ const statusDot=document.getElementById("status");
 const statusText=document.getElementById("statusText");
 const msgCountEl=document.getElementById("msgCount");
 
-const STORAGE_KEY="cw_history",SECRET_KEY="cw_secret",SENDER_KEY="cw_sender";
+const STORAGE_KEY="cw_history_v2",SECRET_KEY="cw_secret",SENDER_KEY="cw_sender";
 function loadHistory(){try{const s=localStorage.getItem(STORAGE_KEY);return s?JSON.parse(s):[];}catch{return[];}}
 function saveHistory(h){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(h.slice(-200)));}catch{}}
 
@@ -241,52 +467,151 @@ secretInput.addEventListener("change",()=>localStorage.setItem(SECRET_KEY,secret
 senderInput.addEventListener("change",()=>localStorage.setItem(SENDER_KEY,senderInput.value));
 
 const history=loadHistory();
-if(history.length>0){history.forEach(m=>renderMsg(m.text,m.type,m.time,false));}
-else{addSystem("\u{1F44B} \u8F93\u5165 Bearer token \u5E76\u53D1\u9001\u6D88\u606F\uFF0C\u5F00\u59CB\u4E0E AI Agent \u5BF9\u8BDD");}
+if(history.length>0){history.forEach(m=>renderMsg(m.text,m.type,m.time,m.sender,false));}
+else{addSystem("> SYSTEM ONLINE. Auth token required for transmission.");}
 updateCount();
 
-input.addEventListener("input",()=>{input.style.height="44px";input.style.height=Math.min(input.scrollHeight,120)+"px";});
+input.addEventListener("focus", ()=>inputWrapper.classList.add("focus"));
+input.addEventListener("blur", ()=>inputWrapper.classList.remove("focus"));
+input.addEventListener("input",()=>{
+  input.style.height="24px";
+  input.style.height=Math.min(input.scrollHeight,240)+"px";
+});
 input.addEventListener("keydown",(e)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}});
 sendBtn.addEventListener("click",send);
 
 async function checkHealth(){
-  try{const r=await fetch("${HEALTH_PATH}");if(r.ok){const d=await r.json();statusDot.className="status-dot";statusText.textContent="\u8FD0\u884C\u4E2D \u00B7 "+fmtUp(d.uptime);}else{statusDot.className="status-dot off";statusText.textContent="\u5F02\u5E38";}}
-  catch{statusDot.className="status-dot off";statusText.textContent="\u79BB\u7EBF";}
+  try{
+    const r=await fetch("\${HEALTH_PATH}");
+    if(r.ok){
+      const d=await r.json();
+      statusDot.className="status-indicator";
+      statusText.textContent="UPTIME: " + fmtUp(d.uptime);
+    } else {
+      statusDot.className="status-indicator offline";
+      statusText.textContent="ERR: " + r.status;
+    }
+  }catch{
+    statusDot.className="status-indicator offline";
+    statusText.textContent="OFFLINE";
+  }
 }
-function fmtUp(s){if(s<60)return Math.round(s)+"s";if(s<3600)return Math.round(s/60)+"m";return Math.round(s/3600)+"h "+Math.round((s%3600)/60)+"m";}
+function fmtUp(s){
+  if(s<60)return Math.round(s)+"S";
+  if(s<3600)return Math.round(s/60)+"M";
+  return Math.round(s/3600)+"H "+Math.round((s%3600)/60)+"M";
+}
 checkHealth();setInterval(checkHealth,10000);
 
-function renderMsg(text,type,time,save=true){
-  if(type==="system"){addSystem(text);return;}if(type==="error"){addError(text);return;}
-  const row=document.createElement("div");row.className="msg-row "+type;
-  const av=document.createElement("div");av.className="avatar "+(type==="user"?"user-av":"agent-av");av.textContent=type==="user"?"U":"\u{1F99E}";
-  const bubble=document.createElement("div");bubble.className="msg-bubble";bubble.textContent=text;
-  const meta=document.createElement("div");meta.className="meta";meta.textContent=time||fmtTime();bubble.appendChild(meta);
-  row.appendChild(av);row.appendChild(bubble);msgsEl.appendChild(row);msgsEl.scrollTop=msgsEl.scrollHeight;
-  if(save){const h=loadHistory();h.push({text,type,time:time||fmtTime()});saveHistory(h);updateCount();}
+function renderMsg(text, type, time, senderName, save=true) {
+  if(type==="system"){addSystem(text);return;}
+  if(type==="error"){addError(text);return;}
+  
+  const block=document.createElement("div");
+  block.className="msg-block " + type;
+  
+  const header=document.createElement("div");
+  header.className="msg-header";
+  header.innerHTML="<span class='sender-label'>"+senderName+"</span><span class='msg-time'>["+(time||fmtTime())+"]</span>";
+  
+  const content=document.createElement("div");
+  content.className="msg-content";
+  content.textContent=text;
+  
+  block.appendChild(header);
+  block.appendChild(content);
+  msgsEl.appendChild(block);
+  msgsEl.scrollTop=msgsEl.scrollHeight;
+  
+  if(save){
+    const h=loadHistory();
+    h.push({text,type,time:time||fmtTime(),sender:senderName});
+    saveHistory(h);updateCount();
+  }
 }
-function addSystem(t){const d=document.createElement("div");d.className="msg system";d.textContent=t;msgsEl.appendChild(d);msgsEl.scrollTop=msgsEl.scrollHeight;}
-function addError(t){const d=document.createElement("div");d.className="msg error";d.textContent=t;msgsEl.appendChild(d);msgsEl.scrollTop=msgsEl.scrollHeight;}
-function addTyping(){const row=document.createElement("div");row.className="typing-row";row.id="typing";const av=document.createElement("div");av.className="avatar agent-av";av.textContent="\u{1F99E}";const b=document.createElement("div");b.className="typing-bubble";b.innerHTML="<span></span><span></span><span></span>";row.appendChild(av);row.appendChild(b);msgsEl.appendChild(row);msgsEl.scrollTop=msgsEl.scrollHeight;}
+
+function addSystem(t){
+  const d=document.createElement("div");
+  d.className="msg-system";d.textContent=t;
+  msgsEl.appendChild(d);msgsEl.scrollTop=msgsEl.scrollHeight;
+}
+function addError(t){
+  const d=document.createElement("div");
+  d.className="msg-error";d.textContent="[ERROR] "+t;
+  msgsEl.appendChild(d);msgsEl.scrollTop=msgsEl.scrollHeight;
+}
+
+function addTyping(){
+  const block=document.createElement("div");
+  block.className="msg-block agent";
+  block.id="typing";
+  
+  const header=document.createElement("div");
+  header.className="msg-header";
+  header.innerHTML="<span class='sender-label'>AGENT</span><span class='msg-time'>[PROCESSING]</span>";
+  
+  const content=document.createElement("div");
+  content.className="msg-content typing-content";
+  content.innerHTML="AWAITING RESPONSE <span class='cursor-blink'></span>";
+  
+  block.appendChild(header);
+  block.appendChild(content);
+  msgsEl.appendChild(block);
+  msgsEl.scrollTop=msgsEl.scrollHeight;
+}
 function removeTyping(){const t=document.getElementById("typing");if(t)t.remove();}
-function fmtTime(){return new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit",second:"2-digit"});}
-function updateCount(){msgCountEl.textContent=loadHistory().length+" \u6761\u6D88\u606F";}
-function clearChat(){if(!confirm("\u786E\u8BA4\u6E05\u7A7A\u804A\u5929\u8BB0\u5F55\uFF1F"))return;localStorage.removeItem(STORAGE_KEY);msgsEl.innerHTML="";addSystem("\u{1F5D1} \u804A\u5929\u5DF2\u6E05\u7A7A");updateCount();}
+function fmtTime(){return new Date().toLocaleTimeString("en-US",{hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit"});}
+function updateCount(){msgCountEl.textContent="RECORDS: "+loadHistory().length;}
+
+function clearChat(){
+  if(!confirm("Execute Purge Protocol? This will delete all local logs."))return;
+  localStorage.removeItem(STORAGE_KEY);
+  msgsEl.innerHTML="";
+  addSystem("> SYSTEM LOGS PURGED");
+  updateCount();
+}
 
 async function send(){
-  const text=input.value.trim();const secret=secretInput.value.trim();
-  if(!text)return;if(!secret){addError("\u8BF7\u5148\u8F93\u5165 Bearer token");return;}
-  renderMsg(text,"user");input.value="";input.style.height="44px";sendBtn.disabled=true;addTyping();
+  const text=input.value.trim();
+  const secret=secretInput.value.trim();
+  const username=senderInput.value.trim()||"SYS_ADMIN";
+  
+  if(!text)return;
+  if(!secret){addError("Authorization token required. Please provide Bearer token.");return;}
+  
+  renderMsg(text,"user",null,username);
+  input.value="";
+  input.style.height="24px";
+  sendBtn.disabled=true;
+  addTyping();
+  
   try{
-    const body={senderId:senderInput.value||"panel-user",chatId:senderInput.value||"panel-user",text};
+    const body={senderId:username,chatId:username,text};
     if(asyncCheck.checked)body.async=true;
-    const r=await fetch(webhookUrl,{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+secret},body:JSON.stringify(body)});
-    removeTyping();const data=await r.json();
-    if(r.status===202){addSystem("\u23F3 \u5DF2\u63A5\u53D7 (async)\uFF0C\u7ED3\u679C\u5C06\u901A\u8FC7 pushUrl \u63A8\u9001");}
-    else if(r.ok&&data.reply){renderMsg(data.reply,"agent");}
-    else{addError(r.status+": "+JSON.stringify(data));}
-  }catch(e){removeTyping();addError("\u8FDE\u63A5\u5931\u8D25: "+e.message);}
-  sendBtn.disabled=false;input.focus();
+    
+    const r=await fetch(webhookUrl,{
+      method:"POST",
+      headers:{"Content-Type":"application/json",Authorization:"Bearer "+secret},
+      body:JSON.stringify(body)
+    });
+    
+    removeTyping();
+    const data=await r.json();
+    
+    if(r.status===202){
+      addSystem("> [ASYNC MODE] Task queued. Agent will dispatch to pushUrl independently.");
+    }else if(r.ok&&data.reply){
+      renderMsg(data.reply,"agent",null,"AGENT");
+    }else{
+      addError("STATUS "+r.status+" - "+JSON.stringify(data));
+    }
+  }catch(e){
+    removeTyping();
+    addError("CONNECTION REFUSED: "+e.message);
+  }
+  
+  sendBtn.disabled=false;
+  input.focus();
 }
 </script>
 </body>

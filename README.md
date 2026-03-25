@@ -190,6 +190,12 @@ npx openclaw-custom-webhook uninstall
 
 ## 📝 Changelog
 
+### v1.6.1
+- ✨ 全新 Neo-Industrial 赛博工业风 Web 面板 UI
+- ⌨️ 引入 JetBrains Mono 极客终端字体配搭
+- 📟 纯净深邃的动态网格背景与呼吸光效
+- 💬 强化视觉层级与终端排版风格
+
 ### v1.6.0
 - 🎨 全新 glassmorphism Web 面板 UI
 - 💾 localStorage 消息历史持久化
