@@ -227,15 +227,27 @@ async function setupConfig() {
   // Existing values
   const existing = cfg.channels?.["custom-webhook"]?.accounts?.default ?? {};
 
-  const receiveSecret = await ask(
-    `接收密钥 (receiveSecret) [${existing.receiveSecret ? "***已配置***" : "必填"}]: `
-  );
+  let receiveSecret = "";
+  if (existing.receiveSecret) {
+    const input = await ask(`接收密钥 (receiveSecret) [回车保留现有 / 输入新值]: `);
+    receiveSecret = input || existing.receiveSecret;
+  } else {
+    while (!receiveSecret) {
+      receiveSecret = await ask(`接收密钥 (receiveSecret, 输入 auto 自动生成) [必填]: `);
+      if (receiveSecret === "auto") {
+        const { randomBytes } = await import("node:crypto");
+        receiveSecret = randomBytes(24).toString("hex");
+        ok(`已生成密钥: ${receiveSecret}`);
+      }
+      if (!receiveSecret) warn("receiveSecret 不能为空！");
+    }
+  }
   const pushUrl = await ask(
     `推送地址 (pushUrl, 留空跳过) [${existing.pushUrl || "未配置"}]: `
-  );
+  ) || existing.pushUrl || "";
   const pushSecret = pushUrl
-    ? await ask(`推送密钥 (pushSecret, 留空跳过) [${existing.pushSecret || "未配置"}]: `)
-    : "";
+    ? (await ask(`推送密钥 (pushSecret, 留空跳过) [${existing.pushSecret ? "***已配置***" : "未配置"}]: `) || existing.pushSecret || "")
+    : (existing.pushSecret || "");
 
   // Merge config
   if (!cfg.channels) cfg.channels = {};
