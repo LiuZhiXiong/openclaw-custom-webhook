@@ -7,6 +7,287 @@ import { getCustomWebhookRuntime } from "./src/runtime.js";
 
 const WEBHOOK_PATH = "/api/plugins/custom-webhook/webhook";
 const HEALTH_PATH = "/api/plugins/custom-webhook/health";
+const PANEL_PATH = "/api/plugins/custom-webhook/panel";
+const OPENAPI_PATH = "/api/plugins/custom-webhook/openapi.json";
+
+// === OpenAPI Spec ===
+function getOpenApiSpec(host: string) {
+  return {
+    openapi: "3.0.3",
+    info: {
+      title: "Custom Webhook - OpenClaw Plugin",
+      description: "HTTP Webhook channel plugin for OpenClaw AI agents. Send messages, images, and files to AI agents and receive intelligent replies.",
+      version: "1.5.0",
+      contact: { url: "https://github.com/LiuZhiXiong/openclaw-custom-webhook" },
+    },
+    servers: [{ url: host, description: "Current gateway" }],
+    paths: {
+      [WEBHOOK_PATH]: {
+        post: {
+          summary: "Send message to Agent",
+          operationId: "sendMessage",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["senderId", "text"],
+                  properties: {
+                    senderId: { type: "string", description: "Unique sender identifier" },
+                    text: { type: "string", description: "Message content" },
+                    chatId: { type: "string", description: "Conversation ID (defaults to senderId)" },
+                    async: { type: "boolean", description: "Return 202 immediately, push result via pushUrl" },
+                    messageId: { type: "string", description: "Message ID for deduplication" },
+                    isGroup: { type: "boolean", description: "Whether this is a group chat" },
+                    attachments: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          type: { type: "string", enum: ["image", "file"] },
+                          url: { type: "string", format: "uri" },
+                          name: { type: "string" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Agent reply (sync mode)",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      ok: { type: "boolean" },
+                      reply: { type: "string" },
+                      attachments: { type: "array" },
+                      timestamp: { type: "number" },
+                    },
+                  },
+                },
+              },
+            },
+            "202": { description: "Accepted (async mode)" },
+            "401": { description: "Unauthorized" },
+          },
+        },
+      },
+      [HEALTH_PATH]: {
+        get: {
+          summary: "Health check",
+          operationId: "healthCheck",
+          responses: {
+            "200": {
+              description: "Plugin health status",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      ok: { type: "boolean" },
+                      plugin: { type: "string" },
+                      version: { type: "string" },
+                      uptime: { type: "number" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    components: {
+      securitySchemes: {
+        bearerAuth: { type: "http", scheme: "bearer" },
+      },
+    },
+  };
+}
+
+// === Web Chat Panel HTML ===
+function getPanelHtml(webhookUrl: string) {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Custom Webhook Tester</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0f1e;--surface:#111827;--surface2:#1e293b;--border:#1e3a5f;--text:#e2e8f0;--text2:#94a3b8;--cyan:#00d4ff;--cyan2:#0891b2;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--font:'Inter',system-ui,sans-serif}
+body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+header h1{font-size:16px;font-weight:600;background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.status{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+.status.offline{background:var(--red);box-shadow:0 0 6px var(--red)}
+header .spacer{flex:1}
+header .links{display:flex;gap:8px}
+header .links a{color:var(--text2);text-decoration:none;font-size:12px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;transition:all .2s}
+header .links a:hover{color:var(--cyan);border-color:var(--cyan)}
+.config-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap}
+.config-bar label{font-size:12px;color:var(--text2)}
+.config-bar input,.config-bar select{font-family:var(--font);font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);outline:none;transition:border-color .2s}
+.config-bar input:focus{border-color:var(--cyan)}
+.config-bar input.secret{width:200px}
+.config-bar input.sender{width:100px}
+.config-bar .toggle{display:flex;align-items:center;gap:4px}
+.config-bar .toggle input[type=checkbox]{accent-color:var(--cyan)}
+.messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:75%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5;animation:fadeIn .3s ease;white-space:pre-wrap;word-break:break-word}
+.msg.user{align-self:flex-end;background:linear-gradient(135deg,var(--blue),var(--cyan2));color:#fff;border-bottom-right-radius:4px}
+.msg.agent{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:4px}
+.msg.system{align-self:center;background:transparent;color:var(--text2);font-size:12px;padding:4px 12px}
+.msg.error{align-self:center;background:#3b1111;color:var(--red);font-size:12px;border:1px solid #5c1c1c;border-radius:8px}
+.msg .meta{font-size:10px;color:var(--text2);margin-top:4px}
+.msg.agent .meta{color:var(--text2)}
+.msg.user .meta{color:rgba(255,255,255,.6)}
+.typing{align-self:flex-start;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;border-bottom-left-radius:4px}
+.typing span{display:inline-block;width:6px;height:6px;background:var(--text2);border-radius:50%;animation:bounce .6s infinite alternate;margin:0 2px}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{to{transform:translateY(-6px);opacity:.4}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.input-bar{background:var(--surface);border-top:1px solid var(--border);padding:12px 20px;display:flex;gap:8px;flex-shrink:0}
+.input-bar textarea{flex:1;font-family:var(--font);font-size:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);outline:none;resize:none;height:42px;max-height:120px;transition:border-color .2s}
+.input-bar textarea:focus{border-color:var(--cyan)}
+.input-bar button{width:42px;height:42px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--cyan),var(--blue));color:#fff;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:transform .15s,opacity .2s}
+.input-bar button:hover{transform:scale(1.05)}
+.input-bar button:active{transform:scale(.95)}
+.input-bar button:disabled{opacity:.5;cursor:not-allowed}
+</style>
+</head>
+<body>
+<header>
+  <div class="status" id="status"></div>
+  <h1>🦞 Custom Webhook Tester</h1>
+  <div class="spacer"></div>
+  <div class="links">
+    <a href="${OPENAPI_PATH}" target="_blank">OpenAPI</a>
+    <a href="${HEALTH_PATH}" target="_blank">Health</a>
+    <a href="https://github.com/LiuZhiXiong/openclaw-custom-webhook" target="_blank">GitHub</a>
+  </div>
+</header>
+<div class="config-bar">
+  <label>Secret:</label>
+  <input type="password" class="secret" id="secret" placeholder="Bearer token" value="">
+  <label>Sender:</label>
+  <input type="text" class="sender" id="sender" placeholder="user1" value="panel-user">
+  <div class="toggle"><input type="checkbox" id="async"><label for="async">Async</label></div>
+</div>
+<div class="messages" id="messages">
+  <div class="msg system">👋 输入 Bearer token 并发送消息测试 Agent</div>
+</div>
+<div class="input-bar">
+  <textarea id="input" placeholder="输入消息... (Shift+Enter 换行)" rows="1"></textarea>
+  <button id="send" title="发送">▶</button>
+</div>
+<script>
+const webhookUrl = "${webhookUrl}";
+const msgs = document.getElementById("messages");
+const input = document.getElementById("input");
+const sendBtn = document.getElementById("send");
+const secretInput = document.getElementById("secret");
+const senderInput = document.getElementById("sender");
+const asyncCheck = document.getElementById("async");
+const statusDot = document.getElementById("status");
+
+// Auto-resize textarea
+input.addEventListener("input", () => {
+  input.style.height = "42px";
+  input.style.height = Math.min(input.scrollHeight, 120) + "px";
+});
+
+// Enter to send
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+sendBtn.addEventListener("click", send);
+
+// Check health
+async function checkHealth() {
+  try {
+    const r = await fetch("${HEALTH_PATH}");
+    statusDot.className = r.ok ? "status" : "status offline";
+  } catch { statusDot.className = "status offline"; }
+}
+checkHealth(); setInterval(checkHealth, 15000);
+
+function addMsg(text, type, meta) {
+  const d = document.createElement("div");
+  d.className = "msg " + type;
+  d.textContent = text;
+  if (meta) { const m = document.createElement("div"); m.className = "meta"; m.textContent = meta; d.appendChild(m); }
+  msgs.appendChild(d);
+  msgs.scrollTop = msgs.scrollHeight;
+  return d;
+}
+
+function addTyping() {
+  const d = document.createElement("div");
+  d.className = "typing"; d.id = "typing";
+  d.innerHTML = "<span></span><span></span><span></span>";
+  msgs.appendChild(d);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function removeTyping() { const t = document.getElementById("typing"); if (t) t.remove(); }
+
+function time() { return new Date().toLocaleTimeString(); }
+
+async function send() {
+  const text = input.value.trim();
+  const secret = secretInput.value.trim();
+  if (!text) return;
+  if (!secret) { addMsg("请先输入 Bearer token", "error"); return; }
+
+  addMsg(text, "user", time());
+  input.value = ""; input.style.height = "42px";
+  sendBtn.disabled = true;
+  addTyping();
+
+  try {
+    const body = {
+      senderId: senderInput.value || "panel-user",
+      chatId: senderInput.value || "panel-user",
+      text,
+    };
+    if (asyncCheck.checked) body.async = true;
+
+    const r = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + secret },
+      body: JSON.stringify(body),
+    });
+    removeTyping();
+    const data = await r.json();
+
+    if (r.status === 202) {
+      addMsg("⏳ 已接受 (async)，等待推送结果...", "system");
+    } else if (r.ok && data.reply) {
+      addMsg(data.reply, "agent", time() + (data.attachments?.length ? " · " + data.attachments.length + " 附件" : ""));
+    } else {
+      addMsg(JSON.stringify(data), "error");
+    }
+  } catch (e) {
+    removeTyping();
+    addMsg("连接失败: " + e.message, "error");
+  }
+  sendBtn.disabled = false;
+  input.focus();
+}
+</script>
+</body>
+</html>`;
+}
 
 // Message dedup: keep recent IDs for 5 minutes
 const recentMessageIds = new Map<string, number>();
@@ -107,6 +388,31 @@ const plugin = {
           uptime: process.uptime(),
           timestamp: Date.now(),
         }));
+      },
+    });
+
+    // Web Chat Panel
+    api.registerHttpRoute({
+      path: PANEL_PATH,
+      auth: "none",
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        const host = `http://${req.headers.host ?? "localhost:18789"}`;
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(getPanelHtml(`${host}${WEBHOOK_PATH}`));
+      },
+    });
+
+    // OpenAPI Spec
+    api.registerHttpRoute({
+      path: OPENAPI_PATH,
+      auth: "none",
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        const host = `http://${req.headers.host ?? "localhost:18789"}`;
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        });
+        res.end(JSON.stringify(getOpenApiSpec(host), null, 2));
       },
     });
 
