@@ -1,168 +1,315 @@
 #!/usr/bin/env node
 
 /**
- * openclaw-webhook CLI
- *
- * Quick setup helper for the Custom Webhook plugin.
+ * openclaw-custom-webhook CLI
  *
  * Usage:
- *   npx openclaw-custom-webhook setup          # interactive setup
- *   npx openclaw-custom-webhook test            # send a test message
- *   npx openclaw-custom-webhook test --url URL  # test against specific gateway
+ *   npx openclaw-custom-webhook install   # 一键安装：安装插件 + 创建 symlink + 配置 + 重启
+ *   npx openclaw-custom-webhook setup     # 仅配置 receiveSecret / pushUrl
+ *   npx openclaw-custom-webhook test      # 发测试消息
+ *   npx openclaw-custom-webhook fix-sdk   # 手动修复 plugin-sdk symlink
  */
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { createInterface } from "node:readline";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
+import { execSync, spawn } from "node:child_process";
+import readline from "node:readline";
 
-const CONFIG_DIR = join(homedir(), ".openclaw");
-const CONFIG_FILE = join(CONFIG_DIR, "openclaw.json");
+const OPENCLAW_DIR = path.join(os.homedir(), ".openclaw");
+const CONFIG_PATH = path.join(OPENCLAW_DIR, "openclaw.json");
+const PLUGIN_DIR = path.join(OPENCLAW_DIR, "extensions", "custom-webhook");
 
-function prompt(question) {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
+function ask(question) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => rl.question(question, (ans) => { rl.close(); resolve(ans.trim()); }));
 }
 
-function readConfig() {
-  if (!existsSync(CONFIG_FILE)) {
-    console.error("❌ OpenClaw config not found at", CONFIG_FILE);
-    console.error("   Run `openclaw` first to initialize.");
-    process.exit(1);
+function log(msg) { console.log(`\x1b[36m[custom-webhook]\x1b[0m ${msg}`); }
+function ok(msg)  { console.log(`\x1b[32m✅\x1b[0m ${msg}`); }
+function warn(msg){ console.log(`\x1b[33m⚠️\x1b[0m  ${msg}`); }
+function err(msg) { console.log(`\x1b[31m❌\x1b[0m ${msg}`); }
+
+// =========================================
+// Find OpenClaw installation
+// =========================================
+function findOpenClawRoot() {
+  // 1. npm global
+  try {
+    const globalRoot = execSync("npm root -g", { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+    const p = path.join(globalRoot, "openclaw");
+    if (fs.existsSync(path.join(p, "package.json"))) return p;
+  } catch {}
+
+  // 2. which openclaw -> resolve
+  try {
+    const bin = execSync("which openclaw", { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+    let realBin = bin;
+    try { realBin = fs.realpathSync(bin); } catch {}
+    let cursor = path.dirname(realBin);
+    for (let i = 0; i < 8; i++) {
+      const pkgPath = path.join(cursor, "package.json");
+      if (fs.existsSync(pkgPath)) {
+        try {
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+          if (pkg.name === "openclaw") return cursor;
+        } catch {}
+      }
+      const parent = path.dirname(cursor);
+      if (parent === cursor) break;
+      cursor = parent;
+    }
+  } catch {}
+
+  // 3. Common paths
+  for (const p of [
+    "/usr/lib/node_modules/openclaw",
+    "/usr/local/lib/node_modules/openclaw",
+    path.join(os.homedir(), ".npm-global/lib/node_modules/openclaw"),
+  ]) {
+    if (fs.existsSync(path.join(p, "package.json"))) return p;
   }
-  return JSON.parse(readFileSync(CONFIG_FILE, "utf-8"));
+
+  return null;
+}
+
+// =========================================
+// Create symlink for plugin-sdk
+// =========================================
+function fixSdk() {
+  log("查找 OpenClaw 安装位置...");
+  const root = findOpenClawRoot();
+  if (!root) {
+    err("找不到 OpenClaw 安装位置！请确认已安装: npm install -g openclaw");
+    return false;
+  }
+  ok(`找到 OpenClaw: ${root}`);
+
+  const nodeModulesDir = path.join(PLUGIN_DIR, "node_modules");
+  const link = path.join(nodeModulesDir, "openclaw");
+
+  // Check existing
+  try {
+    const existing = fs.readlinkSync(link);
+    if (existing === root) {
+      ok("symlink 已存在且正确");
+      return true;
+    }
+    fs.unlinkSync(link);
+  } catch {}
+
+  fs.mkdirSync(nodeModulesDir, { recursive: true });
+  try {
+    fs.symlinkSync(root, link, "dir");
+    ok(`已创建 symlink: node_modules/openclaw -> ${root}`);
+    return true;
+  } catch (e) {
+    err(`创建 symlink 失败: ${e.message}`);
+    warn(`请手动执行: ln -sf ${root} ${link}`);
+    return false;
+  }
+}
+
+// =========================================
+// Read/write openclaw.json config
+// =========================================
+function readConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+  } catch {
+    return {};
+  }
 }
 
 function writeConfig(cfg) {
-  writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2) + "\n");
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2) + "\n");
 }
 
-async function setup() {
-  console.log("\n🔧 Custom Webhook Plugin Setup\n");
+// =========================================
+// Setup: configure receiveSecret / pushUrl
+// =========================================
+async function setupConfig() {
+  log("配置 custom-webhook 插件...\n");
 
   const cfg = readConfig();
 
-  const receiveSecret = await prompt("Receive Secret (for authenticating incoming webhooks): ");
-  const pushUrl = await prompt("Push URL (where to forward agent replies, leave empty to skip): ");
-  const pushSecret = pushUrl ? await prompt("Push Secret (Bearer token for push URL): ") : "";
+  // Existing values
+  const existing = cfg.channels?.["custom-webhook"]?.accounts?.default ?? {};
 
-  // Add channel config
+  const receiveSecret = await ask(
+    `接收密钥 (receiveSecret) [${existing.receiveSecret ? "***已配置***" : "必填"}]: `
+  );
+  const pushUrl = await ask(
+    `推送地址 (pushUrl, 留空跳过) [${existing.pushUrl || "未配置"}]: `
+  );
+  const pushSecret = pushUrl
+    ? await ask(`推送密钥 (pushSecret, 留空跳过) [${existing.pushSecret || "未配置"}]: `)
+    : "";
+
+  // Merge config
   if (!cfg.channels) cfg.channels = {};
-  cfg.channels["custom-webhook"] = {
-    accounts: {
-      default: {
-        receiveSecret: receiveSecret || `wh_${Date.now().toString(36)}`,
-        ...(pushUrl ? { pushUrl, pushSecret } : {}),
-      },
-    },
-  };
+  if (!cfg.channels["custom-webhook"]) cfg.channels["custom-webhook"] = {};
+  if (!cfg.channels["custom-webhook"].accounts) cfg.channels["custom-webhook"].accounts = {};
+  if (!cfg.channels["custom-webhook"].accounts.default) cfg.channels["custom-webhook"].accounts.default = {};
 
-  // Add plugin config
+  const acct = cfg.channels["custom-webhook"].accounts.default;
+  if (receiveSecret) acct.receiveSecret = receiveSecret;
+  if (pushUrl) acct.pushUrl = pushUrl;
+  if (pushSecret) acct.pushSecret = pushSecret;
+
+  // Enable plugin
   if (!cfg.plugins) cfg.plugins = {};
-  if (!cfg.plugins.allow) cfg.plugins.allow = [];
-  if (!cfg.plugins.allow.includes("custom-webhook")) {
-    cfg.plugins.allow.push("custom-webhook");
-  }
   if (!cfg.plugins.entries) cfg.plugins.entries = {};
-  cfg.plugins.entries["custom-webhook"] = { enabled: true };
+  if (!cfg.plugins.entries["custom-webhook"]) cfg.plugins.entries["custom-webhook"] = {};
+  cfg.plugins.entries["custom-webhook"].enabled = true;
 
   writeConfig(cfg);
-
-  const secret = cfg.channels["custom-webhook"].accounts.default.receiveSecret;
-  console.log("\n✅ Setup complete!\n");
-  console.log("Your webhook endpoint will be available at:");
-  console.log("  POST http://localhost:18789/api/plugins/custom-webhook/webhook\n");
-  console.log("Headers:");
-  console.log(`  Authorization: Bearer ${secret}`);
-  console.log(`  Content-Type: application/json\n`);
-  console.log("Body example:");
-  console.log('  {"senderId":"user1","chatId":"chat1","text":"Hello!"}\n');
-  console.log("Restart OpenClaw gateway to activate:");
-  console.log("  openclaw gateway restart\n");
+  ok(`配置已写入: ${CONFIG_PATH}`);
+  console.log("");
+  console.log("  receiveSecret:", acct.receiveSecret ? "***" : "(未设置)");
+  console.log("  pushUrl:", acct.pushUrl || "(未设置)");
+  console.log("  pushSecret:", acct.pushSecret ? "***" : "(未设置)");
+  console.log("");
 }
 
-async function test() {
-  const args = process.argv.slice(3);
-  let url = "http://localhost:18789";
-  const urlIdx = args.indexOf("--url");
-  if (urlIdx !== -1 && args[urlIdx + 1]) {
-    url = args[urlIdx + 1];
-  }
+// =========================================
+// Install: all-in-one
+// =========================================
+async function install() {
+  console.log("");
+  console.log("🔧 Custom Webhook 一键安装");
+  console.log("=".repeat(40));
+  console.log("");
 
-  const cfg = readConfig();
-  const section = cfg.channels?.["custom-webhook"] ?? {};
-  const accounts = section.accounts ?? {};
-  const acct = accounts.default ?? section;
-  const secret = acct.receiveSecret;
-
-  if (!secret) {
-    console.error("❌ No receiveSecret configured. Run: npx openclaw-custom-webhook setup");
+  // Step 1: Install plugin via openclaw CLI
+  log("步骤 1/4: 安装插件...");
+  try {
+    const hasOpenclaw = execSync("which openclaw", { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+    if (!hasOpenclaw) throw new Error("not found");
+  } catch {
+    err("未找到 openclaw 命令。请先安装: npm install -g openclaw");
     process.exit(1);
   }
 
-  const webhookUrl = `${url}/api/plugins/custom-webhook/webhook`;
-  console.log(`\n🧪 Sending test message to ${webhookUrl}...\n`);
+  try {
+    execSync("openclaw plugins install openclaw-custom-webhook", {
+      encoding: "utf-8",
+      stdio: ["inherit", "inherit", "inherit"],
+    });
+    ok("插件安装完成");
+  } catch (e) {
+    warn("插件安装遇到问题（可能已安装），继续...");
+  }
+  console.log("");
+
+  // Step 2: Fix SDK symlink
+  log("步骤 2/4: 修复 plugin-sdk 链接...");
+  fixSdk();
+  console.log("");
+
+  // Step 3: Configure
+  log("步骤 3/4: 配置插件...");
+  await setupConfig();
+
+  // Step 4: Restart gateway
+  log("步骤 4/4: 重启 Gateway...");
+  const restart = await ask("是否重启 Gateway？(y/n) [y]: ");
+  if (restart === "" || restart.toLowerCase() === "y") {
+    try {
+      execSync("openclaw gateway restart", { stdio: ["inherit", "inherit", "inherit"] });
+      ok("Gateway 已重启");
+    } catch {
+      warn("Gateway 重启失败，请手动执行: openclaw gateway restart");
+    }
+  }
+
+  console.log("");
+  console.log("=".repeat(40));
+  ok("安装完成！");
+  console.log("");
+  console.log("发送测试消息:");
+  const secret = readConfig().channels?.["custom-webhook"]?.accounts?.default?.receiveSecret ?? "YOUR_SECRET";
+  console.log(`  curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \\`);
+  console.log(`    -H "Content-Type: application/json" \\`);
+  console.log(`    -H "Authorization: Bearer ${secret}" \\`);
+  console.log(`    -d '{"senderId":"test","text":"hello"}'`);
+  console.log("");
+  console.log("或运行: npx openclaw-custom-webhook test");
+  console.log("");
+}
+
+// =========================================
+// Test: send a test message
+// =========================================
+async function test() {
+  const cfg = readConfig();
+  const acct = cfg.channels?.["custom-webhook"]?.accounts?.default ?? {};
+  const secret = acct.receiveSecret;
+
+  if (!secret) {
+    err("未配置 receiveSecret，请先运行: npx openclaw-custom-webhook install");
+    process.exit(1);
+  }
+
+  const port = await ask("Gateway 端口 [18789]: ") || "18789";
+  const text = await ask("发送内容 [hello from webhook]: ") || "hello from webhook";
+
+  log(`发送测试消息到 localhost:${port}...`);
 
   try {
-    const resp = await fetch(webhookUrl, {
+    const resp = await fetch(`http://localhost:${port}/api/plugins/custom-webhook/webhook`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${secret}`,
       },
-      body: JSON.stringify({
-        senderId: "cli-test-user",
-        chatId: "cli-test-chat",
-        text: "Hello from the CLI test!",
-      }),
+      body: JSON.stringify({ senderId: "cli-test", chatId: "cli-test", text }),
     });
-
     const data = await resp.json();
 
     if (resp.ok) {
-      console.log("✅ Success!\n");
-      console.log("Agent reply:", data.reply ?? "(no reply)");
+      ok(`Agent 回复: ${data.reply}`);
     } else {
-      console.error("❌ Failed:", resp.status, data);
+      err(`请求失败 (${resp.status}): ${JSON.stringify(data)}`);
     }
-  } catch (err) {
-    console.error("❌ Connection error:", err.message);
-    console.error("   Is the OpenClaw gateway running?");
+  } catch (e) {
+    err(`连接失败: ${e.message}`);
+    warn("请确认 Gateway 正在运行");
   }
-  console.log();
 }
 
-function showHelp() {
-  console.log(`
-openclaw-webhook - Custom Webhook Channel Plugin for OpenClaw
+// =========================================
+// Main
+// =========================================
+const cmd = process.argv[2];
 
-Usage:
-  npx openclaw-custom-webhook setup   Configure the webhook plugin
-  npx openclaw-custom-webhook test     Send a test message
-  npx openclaw-custom-webhook help     Show this help
-
-Installation:
-  openclaw plugins install openclaw-custom-webhook
-
-Documentation:
-  https://github.com/openclaw/openclaw/tree/main/extensions/custom-webhook
-`);
-}
-
-const command = process.argv[2] ?? "help";
-
-switch (command) {
+switch (cmd) {
+  case "install":
+    await install();
+    break;
   case "setup":
-    await setup();
+    await setupConfig();
     break;
   case "test":
     await test();
     break;
+  case "fix-sdk":
+    fixSdk();
+    break;
   default:
-    showHelp();
+    console.log(`
+openclaw-custom-webhook - Custom Webhook Plugin for OpenClaw
+
+命令:
+  install    一键安装（安装插件 + SDK修复 + 配置 + 重启）
+  setup      仅配置 receiveSecret / pushUrl
+  test       发送测试消息
+  fix-sdk    修复 plugin-sdk symlink
+
+用法:
+  npx openclaw-custom-webhook install
+  npx openclaw-custom-webhook setup
+  npx openclaw-custom-webhook test
+  npx openclaw-custom-webhook fix-sdk
+`);
 }
