@@ -20,9 +20,22 @@ const OPENCLAW_DIR = path.join(os.homedir(), ".openclaw");
 const CONFIG_PATH = path.join(OPENCLAW_DIR, "openclaw.json");
 const PLUGIN_DIR = path.join(OPENCLAW_DIR, "extensions", "custom-webhook");
 
+// Shared readline — one instance for all prompts
+let _rl;
+function getRL() {
+  if (!_rl) {
+    _rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    _rl.on("close", () => { _rl = null; });
+  }
+  return _rl;
+}
+function closeRL() { if (_rl) { _rl.close(); _rl = null; } }
+
 function ask(question) {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => rl.question(question, (ans) => { rl.close(); resolve(ans.trim()); }));
+  return new Promise((resolve) => {
+    const rl = getRL();
+    rl.question(question, (ans) => resolve(ans.trim()));
+  });
 }
 
 function log(msg) { console.log(`\x1b[36m[custom-webhook]\x1b[0m ${msg}`); }
@@ -281,23 +294,25 @@ async function test() {
 // =========================================
 // Main
 // =========================================
-const cmd = process.argv[2];
+async function main() {
+  const cmd = process.argv[2];
 
-switch (cmd) {
-  case "install":
-    await install();
-    break;
-  case "setup":
-    await setupConfig();
-    break;
-  case "test":
-    await test();
-    break;
-  case "fix-sdk":
-    fixSdk();
-    break;
-  default:
-    console.log(`
+  try {
+    switch (cmd) {
+      case "install":
+        await install();
+        break;
+      case "setup":
+        await setupConfig();
+        break;
+      case "test":
+        await test();
+        break;
+      case "fix-sdk":
+        fixSdk();
+        break;
+      default:
+        console.log(`
 openclaw-custom-webhook - Custom Webhook Plugin for OpenClaw
 
 命令:
@@ -312,4 +327,10 @@ openclaw-custom-webhook - Custom Webhook Plugin for OpenClaw
   npx openclaw-custom-webhook test
   npx openclaw-custom-webhook fix-sdk
 `);
+    }
+  } finally {
+    closeRL();
+  }
 }
+
+main().catch((e) => { console.error(e); process.exit(1); });
