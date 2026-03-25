@@ -70,6 +70,10 @@ export const customWebhookPlugin: ChannelPlugin = {
     displayName: "Custom Webhook",
     description: "HTTP webhook channel for external integrations",
   },
+  capabilities: {
+    chatTypes: ["direct", "channel"],
+    nativeCommands: false,
+  },
   config: {
     listAccountIds: (cfg: OpenClawConfig) => listAccountIds(cfg),
   },
