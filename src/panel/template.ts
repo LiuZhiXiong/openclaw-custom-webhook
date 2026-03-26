@@ -318,6 +318,13 @@ textarea::placeholder { color: var(--text-muted); font-family: var(--font-mono);
         ASYNC.MODE
       </label>
     </div>
+    <div class="config-item">
+      <label class="toggle-switch">
+        <input type="checkbox" id="stream">
+        <div class="toggle-slider"></div>
+        STREAM.MODE
+      </label>
+    </div>
     <div class="msg-stats" id="msgCount">RECORDS: 0</div>
   </div>
 
@@ -341,6 +348,7 @@ const sendBtn=document.getElementById("send");
 const secretInput=document.getElementById("secret");
 const senderInput=document.getElementById("sender");
 const asyncCheck=document.getElementById("async");
+const streamCheck=document.getElementById("stream");
 const statusDot=document.getElementById("status");
 const statusText=document.getElementById("statusText");
 const msgCountEl=document.getElementById("msgCount");
@@ -476,6 +484,7 @@ async function send(){
   try{
     const body={senderId:username,chatId:username,text};
     if(asyncCheck.checked)body.async=true;
+    if(streamCheck.checked)body.stream=true;
     
     const r=await fetch(webhookUrl,{
       method:"POST",
@@ -484,14 +493,71 @@ async function send(){
     });
     
     removeTyping();
-    const data=await r.json();
     
-    if(r.status===202){
-      addSystem("> [ASYNC MODE] Task queued. Agent will dispatch to pushUrl independently.");
-    }else if(r.ok&&data.reply){
-      renderMsg(data.reply,"agent",null,"AGENT");
-    }else{
-      addError("STATUS "+r.status+" - "+JSON.stringify(data));
+    // SSE 流式模式
+    if(streamCheck.checked && r.ok && r.headers.get("content-type")?.includes("text/event-stream")){
+      // 创建流式消息容器
+      const block=document.createElement("div");
+      block.className="msg-block agent";
+      const header=document.createElement("div");
+      header.className="msg-header";
+      header.innerHTML="<span class='sender-label'>AGENT</span><span class='msg-time'>[STREAMING]</span>";
+      const content=document.createElement("div");
+      content.className="msg-content";
+      content.style.whiteSpace="pre-wrap";
+      content.textContent="";
+      block.appendChild(header);
+      block.appendChild(content);
+      msgsEl.appendChild(block);
+      
+      const reader=r.body.getReader();
+      const decoder=new TextDecoder();
+      let fullText="";
+      let buffer="";
+      
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        buffer+=decoder.decode(value,{stream:true});
+        const lines=buffer.split("\n");
+        buffer=lines.pop()||"";
+        
+        for(const line of lines){
+          if(line.startsWith("data: ")){
+            try{
+              const d=JSON.parse(line.slice(6));
+              if(d.text){
+                fullText+=d.text;
+                content.textContent=fullText;
+                msgsEl.scrollTop=msgsEl.scrollHeight;
+              }
+              if(d.type&&d.url){
+                content.innerHTML+="<br>["+d.type+": "+d.url+"]";
+              }
+            }catch{}
+          }
+          if(line.startsWith("event: done")){
+            header.querySelector(".msg-time").textContent="["+fmtTime()+"]";
+          }
+        }
+      }
+      // 保存到历史
+      if(fullText){
+        const h=loadHistory();
+        h.push({text:fullText,type:"agent",time:fmtTime(),sender:"AGENT"});
+        saveHistory(h);updateCount();
+      }
+    } else {
+      // 普通 JSON 模式
+      const data=await r.json();
+      
+      if(r.status===202){
+        addSystem("> [ASYNC MODE] Task queued. Agent will dispatch to pushUrl independently.");
+      }else if(r.ok&&data.reply){
+        renderMsg(data.reply,"agent",null,"AGENT");
+      }else{
+        addError("STATUS "+r.status+" - "+JSON.stringify(data));
+      }
     }
   }catch(e){
     removeTyping();

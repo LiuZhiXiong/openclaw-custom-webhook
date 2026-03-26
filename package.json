@@ -1,6 +1,6 @@
 {
   "name": "openclaw-custom-webhook",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Custom HTTP Webhook channel plugin for OpenClaw - receive and send messages via HTTP webhooks",
   "keywords": [
     "ai",
