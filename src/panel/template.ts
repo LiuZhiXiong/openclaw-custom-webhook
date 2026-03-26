@@ -1,4 +1,5 @@
 const OPENAPI_PATH = "/api/plugins/custom-webhook/openapi.json";
+const DOCS_PATH = "/api/plugins/custom-webhook/docs";
 const HEALTH_PATH = "/api/plugins/custom-webhook/health";
 
 export function getPanelHtml(webhookUrl: string) {
@@ -26,6 +27,64 @@ export function getPanelHtml(webhookUrl: string) {
   --font-ui: 'Outfit', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
+
+/* Light theme */
+.theme-light {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --panel: #eef0f4;
+  --border: #d4d9e2;
+  --text-main: #1a1d24;
+  --text-muted: #5a6370;
+  --accent: #d94800;
+  --accent-dim: rgba(217, 72, 0, 0.1);
+  --teal: #0891b2;
+  --teal-dim: rgba(8, 145, 178, 0.08);
+  --green: #059669;
+  --red: #dc2626;
+}
+/* Header & Layout */
+.theme-light body::before { opacity: 0.04; }
+.theme-light body::after { display: none; }
+.theme-light .terminal-container { box-shadow: 0 0 60px rgba(0,0,0,0.08); }
+.theme-light header { background: rgba(255, 255, 255, 0.92) !important; }
+.theme-light header::after { background: var(--accent); }
+/* Config bar */
+.theme-light .config-bar { box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important; }
+.theme-light .config-item input[type="text"],
+.theme-light .config-item input[type="password"] {
+  background: #fff !important; border-color: var(--border) !important;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.04) !important;
+}
+/* Buttons */
+.theme-light .btn-action { background: #fff !important; border-color: var(--border) !important; color: var(--text-muted) !important; }
+.theme-light .btn-action:hover { background: var(--teal-dim) !important; color: var(--teal) !important; border-color: var(--teal) !important; box-shadow: 0 2px 8px rgba(8,145,178,0.15) !important; }
+.theme-light .btn-danger:hover { background: rgba(220,38,38,0.06) !important; color: var(--red) !important; border-color: var(--red) !important; box-shadow: 0 2px 8px rgba(220,38,38,0.12) !important; }
+/* Status indicator */
+.theme-light .status-indicator { background: rgba(5,150,105,0.06) !important; border-color: rgba(5,150,105,0.3) !important; }
+.theme-light .status-indicator::before { box-shadow: 0 0 4px var(--green) !important; }
+.theme-light .status-indicator.offline { background: rgba(220,38,38,0.06) !important; border-color: rgba(220,38,38,0.3) !important; }
+/* Messages */
+.theme-light .msg-content { background: var(--surface) !important; border-color: var(--border) !important; box-shadow: 0 1px 4px rgba(0,0,0,0.05) !important; }
+.theme-light .msg-block.user .msg-content { background: var(--accent-dim) !important; border-color: rgba(217,72,0,0.2) !important; }
+.theme-light .msg-block.system .msg-content { background: var(--teal-dim) !important; border-color: rgba(8,145,178,0.15) !important; }
+/* Input area */
+.theme-light .input-zone { background: var(--surface) !important; }
+.theme-light .input-wrapper { background: var(--panel) !important; border-color: var(--border) !important; box-shadow: inset 0 1px 3px rgba(0,0,0,0.04) !important; }
+.theme-light .input-wrapper:focus-within { border-color: var(--teal) !important; box-shadow: 0 0 0 2px var(--teal-dim) !important; }
+.theme-light textarea { color: var(--text-main) !important; }
+/* Send button */
+.theme-light .send-btn { background: var(--accent-dim) !important; color: var(--accent) !important; border-color: rgba(217,72,0,0.25) !important; }
+.theme-light .send-btn:hover { background: var(--accent) !important; color: #fff !important; }
+.theme-light .send-btn:disabled { background: var(--panel) !important; color: var(--text-muted) !important; border-color: var(--border) !important; }
+/* Toggle switch */
+.theme-light .toggle-slider { background: #cdd5e0 !important; }
+.theme-light .toggle-switch input:checked + .toggle-slider { background: var(--teal) !important; }
+/* Brand icon */
+.theme-light .brand-icon { box-shadow: 0 2px 8px var(--accent-dim) !important; }
+/* Scrollbar */
+.theme-light ::-webkit-scrollbar-track { background: var(--panel); }
+.theme-light ::-webkit-scrollbar-thumb { background: #c5cad3; }
 * { margin:0; padding:0; box-sizing:border-box; }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
@@ -291,12 +350,12 @@ textarea::placeholder { color: var(--text-muted); font-family: var(--font-mono);
       <div class="brand-icon">\u271A</div>
       <div class="brand-title">
         <h1>SYS.WEBHOOK_TESTER</h1>
-        <span>OPENCLAW PLUGIN [v1.6]</span>
+        <span>OPENCLAW PLUGIN [v2.0]</span>
       </div>
     </div>
     <div class="header-actions">
       <div class="status-indicator" id="status"><span id="statusText">PROBING...</span></div>
-      <a href="${OPENAPI_PATH}" target="_blank" class="btn-action">DOCS.JSON</a>
+      <a href="${DOCS_PATH}" target="_blank" class="btn-action">API.DOCS</a>
       <a href="https://github.com/LiuZhiXiong/openclaw-custom-webhook" target="_blank" class="btn-action">REPO.SRC</a>
       <button class="btn-action btn-danger" onclick="clearChat()">PURGE.LOG</button>
     </div>
@@ -318,11 +377,12 @@ textarea::placeholder { color: var(--text-muted); font-family: var(--font-mono);
         ASYNC.MODE
       </label>
     </div>
+
     <div class="config-item">
       <label class="toggle-switch">
-        <input type="checkbox" id="stream">
+        <input type="checkbox" id="themeToggle">
         <div class="toggle-slider"></div>
-        STREAM.MODE
+        LIGHT.MODE
       </label>
     </div>
     <div class="msg-stats" id="msgCount">RECORDS: 0</div>
@@ -334,7 +394,7 @@ textarea::placeholder { color: var(--text-muted); font-family: var(--font-mono);
     <div class="input-wrapper" id="inputWrapper">
       <div class="input-prefix">&gt;</div>
       <textarea id="input" placeholder="Input command or query. [ENTER] to execute, [SHIFT+ENTER] for newline..." rows="1"></textarea>
-      <button class="send-btn" id="send">EXECUTE \u23CE</button>
+      <button class="send-btn" id="sendBtn">EXECUTE \u23CE</button>
     </div>
   </div>
 </div>
@@ -344,11 +404,11 @@ const webhookUrl="${webhookUrl}";
 const msgsEl=document.getElementById("messages");
 const input=document.getElementById("input");
 const inputWrapper=document.getElementById("inputWrapper");
-const sendBtn=document.getElementById("send");
+const sendBtn=document.getElementById("sendBtn");
 const secretInput=document.getElementById("secret");
 const senderInput=document.getElementById("sender");
 const asyncCheck=document.getElementById("async");
-const streamCheck=document.getElementById("stream");
+
 const statusDot=document.getElementById("status");
 const statusText=document.getElementById("statusText");
 const msgCountEl=document.getElementById("msgCount");
@@ -359,8 +419,23 @@ function saveHistory(h){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(h.sl
 
 const savedSecret=localStorage.getItem(SECRET_KEY);if(savedSecret)secretInput.value=savedSecret;
 const savedSender=localStorage.getItem(SENDER_KEY);if(savedSender)senderInput.value=savedSender;
-secretInput.addEventListener("change",()=>localStorage.setItem(SECRET_KEY,secretInput.value));
-senderInput.addEventListener("change",()=>localStorage.setItem(SENDER_KEY,senderInput.value));
+secretInput.addEventListener("input",()=>localStorage.setItem(SECRET_KEY,secretInput.value));
+senderInput.addEventListener("input",()=>localStorage.setItem(SENDER_KEY,senderInput.value));
+
+// Theme toggle
+const themeToggle=document.getElementById("themeToggle");
+const THEME_KEY="cw_theme";
+function applyTheme(light){
+  if(light){document.documentElement.classList.add("theme-light");}
+  else{document.documentElement.classList.remove("theme-light");}
+}
+const savedTheme=localStorage.getItem(THEME_KEY);
+if(savedTheme==="light"){themeToggle.checked=true;applyTheme(true);}
+themeToggle.addEventListener("change",()=>{
+  const isLight=themeToggle.checked;
+  applyTheme(isLight);
+  localStorage.setItem(THEME_KEY,isLight?"light":"dark");
+});
 
 const history=loadHistory();
 if(history.length>0){history.forEach(m=>renderMsg(m.text,m.type,m.time,m.sender,false));}
@@ -373,8 +448,8 @@ input.addEventListener("input",()=>{
   input.style.height="24px";
   input.style.height=Math.min(input.scrollHeight,240)+"px";
 });
-input.addEventListener("keydown",(e)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}});
-sendBtn.addEventListener("click",send);
+input.addEventListener("keydown",(e)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();doSend();}});
+sendBtn.addEventListener("click",doSend);
 
 async function checkHealth(){
   try{
@@ -467,7 +542,7 @@ function clearChat(){
   updateCount();
 }
 
-async function send(){
+async function doSend(){
   const text=input.value.trim();
   const secret=secretInput.value.trim();
   const username=senderInput.value.trim()||"SYS_ADMIN";
@@ -484,7 +559,6 @@ async function send(){
   try{
     const body={senderId:username,chatId:username,text};
     if(asyncCheck.checked)body.async=true;
-    if(streamCheck.checked)body.stream=true;
     
     const r=await fetch(webhookUrl,{
       method:"POST",
@@ -494,70 +568,18 @@ async function send(){
     
     removeTyping();
     
-    // SSE 流式模式
-    if(streamCheck.checked && r.ok && r.headers.get("content-type")?.includes("text/event-stream")){
-      // 创建流式消息容器
-      const block=document.createElement("div");
-      block.className="msg-block agent";
-      const header=document.createElement("div");
-      header.className="msg-header";
-      header.innerHTML="<span class='sender-label'>AGENT</span><span class='msg-time'>[STREAMING]</span>";
-      const content=document.createElement("div");
-      content.className="msg-content";
-      content.style.whiteSpace="pre-wrap";
-      content.textContent="";
-      block.appendChild(header);
-      block.appendChild(content);
-      msgsEl.appendChild(block);
-      
-      const reader=r.body.getReader();
-      const decoder=new TextDecoder();
-      let fullText="";
-      let buffer="";
-      
-      while(true){
-        const {done,value}=await reader.read();
-        if(done)break;
-        buffer+=decoder.decode(value,{stream:true});
-        const lines=buffer.split("\n");
-        buffer=lines.pop()||"";
-        
-        for(const line of lines){
-          if(line.startsWith("data: ")){
-            try{
-              const d=JSON.parse(line.slice(6));
-              if(d.text){
-                fullText+=d.text;
-                content.textContent=fullText;
-                msgsEl.scrollTop=msgsEl.scrollHeight;
-              }
-              if(d.type&&d.url){
-                content.innerHTML+="<br>["+d.type+": "+d.url+"]";
-              }
-            }catch{}
-          }
-          if(line.startsWith("event: done")){
-            header.querySelector(".msg-time").textContent="["+fmtTime()+"]";
-          }
-        }
-      }
-      // 保存到历史
-      if(fullText){
-        const h=loadHistory();
-        h.push({text:fullText,type:"agent",time:fmtTime(),sender:"AGENT"});
-        saveHistory(h);updateCount();
-      }
-    } else {
-      // 普通 JSON 模式
+    if(r.status===202){
+      addSystem("> [ASYNC MODE] Task queued. Agent will dispatch to pushUrl independently.");
+    }else if(r.ok){
       const data=await r.json();
-      
-      if(r.status===202){
-        addSystem("> [ASYNC MODE] Task queued. Agent will dispatch to pushUrl independently.");
-      }else if(r.ok&&data.reply){
+      if(data.reply){
         renderMsg(data.reply,"agent",null,"AGENT");
       }else{
         addError("STATUS "+r.status+" - "+JSON.stringify(data));
       }
+    }else{
+      const data=await r.json().catch(()=>({error:"Unknown error"}));
+      addError("STATUS "+r.status+" - "+JSON.stringify(data));
     }
   }catch(e){
     removeTyping();

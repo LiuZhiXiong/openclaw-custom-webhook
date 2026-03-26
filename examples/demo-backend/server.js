@@ -1,7 +1,12 @@
 import express from 'express';
+import crypto from 'crypto';
 
 const app = express();
-app.use(express.json());
+// Capture raw body BEFORE JSON parsing — required for HMAC verification.
+// Re-stringifying parsed JSON can produce a different string than was signed.
+app.use(express.json({
+  verify: (req, _res, buf) => { req.rawBody = buf.toString('utf8'); }
+}));
 
 const PORT = process.env.PORT || 3005;
 const OPENCLAW_URL = process.env.OPENCLAW_URL || 'http://localhost:18789';
@@ -17,13 +22,44 @@ const messageHistory = [];
 //    适用于 async 模式和常规 pushUrl 回调
 // ==========================================
 app.post('/receive', (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${PUSH_SECRET}`) {
-    console.log('❌ 收到未授权推送请求');
-    return res.status(401).send('Unauthorized');
+  // 验证 HMAC-SHA256 签名 (X-Signature + X-Timestamp)
+  const signature = req.headers['x-signature'];
+  const timestamp = req.headers['x-timestamp'];
+
+  if (signature && timestamp && PUSH_SECRET) {
+    // Use the raw received body string — NOT JSON.stringify(req.body) —
+    // because re-serialization can differ from what was signed.
+    const bodyStr = req.rawBody || JSON.stringify(req.body);
+    const expected = 'sha256=' + crypto
+      .createHmac('sha256', PUSH_SECRET)
+      .update(`${timestamp}.${bodyStr}`)
+      .digest('hex');
+
+    // 时间戳重放保护（5 分钟窗口）
+    const ts = parseInt(timestamp, 10);
+    const age = Math.abs(Date.now() - ts);
+
+    if (age > 5 * 60 * 1000) {
+      console.log('❌ 推送请求已过期（超出5分钟窗口）');
+      return res.status(401).json({ error: 'timestamp expired' });
+    }
+
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+      console.log('❌ HMAC 签名验证失败');
+      return res.status(401).json({ error: 'invalid signature' });
+    }
+
+    console.log('✅ HMAC 签名验证通过');
+  } else {
+    // 降级：仅验证 Bearer Token
+    const authHeader = req.headers.authorization;
+    if (authHeader !== `Bearer ${PUSH_SECRET}`) {
+      console.log('❌ 收到未授权推送请求');
+      return res.status(401).json({ error: 'unauthorized' });
+    }
   }
 
-  const { type, senderId, chatId, reply, attachments, timestamp } = req.body;
+  const { type, senderId, chatId, reply, attachments, timestamp: ts } = req.body;
 
   console.log('\n╔══════════════════════════════════════════════╗');
   console.log(`║ 🤖 收到 Agent 回复 (${type ?? 'unknown'})`);
@@ -45,7 +81,7 @@ app.post('/receive', (req, res) => {
     chatId,
     text: reply,
     attachments: attachments ?? [],
-    timestamp: timestamp || Date.now(),
+    timestamp: ts || Date.now(),
   });
 
   res.status(200).json({ ok: true });

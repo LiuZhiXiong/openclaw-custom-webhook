@@ -1,117 +1,156 @@
+[中文](./README.zh-CN.md) | English
+
 # 🦞 OpenClaw Custom Webhook
 
 [![npm version](https://img.shields.io/npm/v/openclaw-custom-webhook.svg)](https://www.npmjs.com/package/openclaw-custom-webhook)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![OpenClaw: v2026.3+](https://img.shields.io/badge/OpenClaw-v2026.3+-orange.svg)](https://github.com/openclaw/openclaw)
 
-A production-grade HTTP Webhook channel plugin for **OpenClaw AI Agents**. Connect any backend, bot, automation script, or frontend interface to your AI agents via standard REST APIs.
+**Turn any HTTP client into a two-way OpenClaw AI Agent channel.** Send messages to your agents and receive push callbacks when they reply -- no custom SDKs required.
 
----
-
-## ✨ Key Features
-
-| Capability | Description |
-|------------|-------------|
-| 🖥 **Neo-Industrial Web Panel** | Built-in browser chat UI for instant Agent testing and debugging |
-| ⚡️ **Async Processing** | Pass `async: true` to get 202 Accepted; results are pushed to your `pushUrl` |
-| 🔄 **Idempotent Delivery** | `messageId` deduplication with 5-minute TTL to prevent duplicate agent replies |
-| 🔁 **Reliable Push** | Auto-retries (3x exponential backoff) for push callbacks if your server drops connections |
-| 🖼 **Multi-Modal Support** | Native image/file attachment processing directly into the Agent's vision pipeline |
-| 📚 **Interactive OpenAPI** | Auto-generated standard OpenAPI 3.0.3 specification at `/openapi.json` |
-| 🏥 **Health Monitoring** | Real-time gateway connectivity and plugin uptime via `/health` |
-
----
-
-## 🚀 Quick Start
-
-Install globally using `npx`. The installer will automatically configure the plugin, patch your OpenClaw SDK, set up authentication secrets, and restart the gateway:
-
-```bash
-npx openclaw-custom-webhook install
+```
+              +----------------------------+
+              |   OpenClaw Agent (AI)      |
+              +-------------+--------------+
+                            |
+              +-------------+---------------+
+              |    Custom Webhook Plugin    |
+              +--+------------------------+-+
+                 |                        |
+   +-------------v-----------+  +---------v-----------------+
+   |  Send to Agent          |  |  Receive from Agent       |
+   |  POST /webhook          |  |  Agent -> your pushUrl    |
+   |  sync reply / async 202 |  |  HMAC signed + auto-retry |
+   +-------------------------+  +---------------------------+
 ```
 
-Once installed, simply open the Web Panel to start chatting with your Agent immediately:
+## Why
+
+OpenClaw natively supports Telegram, Discord, Slack, etc. But what if you need to connect:
+
+- A WeCom (企业微信) bot
+- An internal SaaS tool
+- A mobile app backend
+- An IoT device
+- A CI/CD pipeline with AI capabilities
+
+**Custom Webhook is the universal adapter** — any system that can send HTTP requests can talk to your OpenClaw agents, with full multi-turn conversation support.
+
+---
+
+## Quick Start
 
 ```bash
+# Install
+npx openclaw-custom-webhook install
+
+# Open the test panel in your browser
 npx openclaw-custom-webhook open
 ```
-*(Or navigate to `http://localhost:18789/api/plugins/custom-webhook/panel`)*
+
+Or send your first message directly:
+
+```bash
+curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_SECRET" \
+  -d '{"senderId": "user-1", "text": "Hello!"}'
+```
+
+```json
+{
+  "ok": true,
+  "reply": "Hey! 👋 How can I help?",
+  "timestamp": 1774463000000
+}
+```
 
 ---
 
-## 💻 CLI Toolkit
+## Features
 
-Manage your plugin lifecycle directly from the terminal:
+| Feature | Description |
+|---------|-------------|
+| **Multi-Turn Conversations** | Same `senderId` = same session. The agent remembers context across messages automatically |
+| **Sync & Async Modes** | Wait for reply, or get 202 and receive results via push callback |
+| **Web Test Panel** | Built-in chat UI at `/panel` with dark/light themes, auth persistence, message history |
+| **Idempotent Delivery** | `messageId` deduplication prevents duplicate agent processing (5-min TTL) |
+| **Multi-Modal Input** | Send images and files via `attachments[]` for the agent's vision pipeline |
+| **Reliable Push** | Async replies auto-retry 3× with exponential backoff |
+| **Rate Limiting** | Sliding-window rate limiter (configurable, default 30 req/min) |
+| **HMAC Signing** | Outbound push callbacks are signed with SHA-256 HMAC for verification |
+| **Health & Events** | Real-time health check + ring-buffer event log for debugging |
+| **OpenAPI 3.0 Spec** | Machine-readable spec at `/openapi.json` for Postman/AI tool import |
+
+---
+
+## CLI Commands
 
 ```bash
 npx openclaw-custom-webhook [command]
 ```
 
-| Command | Action |
-|---------|--------|
-| `install` | Install/Upgrade plugin, setup SDK, configure secrets, reboot gateway |
-| `status` | View gateway health, active endpoints, and loaded configurations |
-| `open` | Open the Web UI Panel in your default browser |
-| `test` | Send a quick CLI-based test message to the Agent |
-| `setup` | Interactively modify your auth keys (`receiveSecret` & `pushUrl`) |
-| `fix-sdk` | Manually repair the `plugin-sdk` symlink after an NPM global update |
-| `uninstall`| completely wipe the plugin directory and `openclaw.json` configurations |
+| Command | Description |
+|---------|-------------|
+| `install` | Install plugin, setup SDK symlink, configure secrets, restart gateway |
+| `status` | Show gateway health, endpoints, and loaded config |
+| `open` | Open Web Panel in default browser |
+| `test` | Send a quick test message from the terminal |
+| `setup` | Interactively configure `receiveSecret` and `pushUrl` |
+| `fix-sdk` | Repair `plugin-sdk` symlink after npm updates |
+| `uninstall` | Remove plugin and clean up `openclaw.json` config |
 
 ---
 
-## 📡 REST API Reference
+## API Reference
 
-> **Authentication**: All endpoints require a Bearer token matching your `receiveSecret` configured in `~/.openclaw/openclaw.json`.
-> ```http
-> Authorization: Bearer <your-secret>
-> ```
+> **Base URL**: `http://localhost:18789/api/plugins/custom-webhook`
+>
+> **Auth**: `Authorization: Bearer <receiveSecret>`
 
-### 1. Send Message (Sync)
-**`POST /api/plugins/custom-webhook/webhook`**
+### Send Message
 
-Hold the connection open until the Agent replies.
-
-```bash
-curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer my_super_secret" \
-  -d '{
-    "senderId": "user123",
-    "text": "What is the weather today?",
-    "messageId": "unique-msg-001"
-  }'
+```
+POST /webhook
 ```
 
-<details>
-<summary><strong>View Response</strong></summary>
+#### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `senderId` | string | ✅ | Unique user identifier. Same ID = same conversation session |
+| `text` | string | ✅ | Message text |
+| `chatId` | string | — | Chat/group ID (defaults to `senderId`) |
+| `messageId` | string | — | For idempotent delivery. Auto-generated if omitted |
+| `async` | boolean | — | `true` to return 202 immediately; reply pushed to `pushUrl` |
+| `isGroup` | boolean | — | `true` if message is from a group chat |
+| `attachments` | array | — | Media files (see below) |
+
+#### Attachments Format
+
+```json
+{
+  "attachments": [
+    { "url": "https://example.com/photo.jpg", "type": "image", "name": "photo.jpg" },
+    { "url": "https://example.com/doc.pdf", "type": "file", "name": "report.pdf" }
+  ]
+}
+```
+
+#### Sync Response (200)
 
 ```json
 {
   "ok": true,
-  "reply": "I cannot check real-time weather, but I am here to help!",
+  "reply": "Agent's response text",
+  "attachments": [
+    { "type": "image", "url": "https://cdn.example.com/generated.png" }
+  ],
   "timestamp": 1774463000000
 }
 ```
-</details>
 
-### 2. Send Message (Async)
-**`POST /api/plugins/custom-webhook/webhook`**
-
-Return immediately. The Agent will process the message in the background and POST the result to your `pushUrl`.
-
-```bash
-curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer my_super_secret" \
-  -d '{
-    "senderId": "user123",
-    "text": "Summarize this 50-page document.",
-    "async": true
-  }'
-```
-
-<details>
-<summary><strong>View Response</strong></summary>
+#### Async Response (202)
 
 ```json
 {
@@ -120,49 +159,54 @@ curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
   "messageId": "wh-1774463000000"
 }
 ```
-</details>
 
-### 3. Agent Push Callback (Your Server)
-**`POST <your-pushUrl>`**
-
-If you use Async mode, OpenClaw will POST this payload to your backend.
-
-<details>
-<summary><strong>View Payload Format</strong></summary>
+The agent will POST results to your configured `pushUrl`:
 
 ```json
 {
   "type": "agent_reply",
-  "senderId": "user123",
-  "chatId": "user123",
-  "reply": "Here is the summary you requested...",
-  "attachments": [
-    { "type": "image", "url": "https://cdn.example.com/generated-chart.png" }
-  ],
+  "senderId": "user-1",
+  "chatId": "user-1",
+  "reply": "Here's the summary you requested...",
   "timestamp": 1774463005000
 }
 ```
-</details>
 
-### 4. System Endpoints
+### System Endpoints
 
-- **Web Panel**: `GET /api/plugins/custom-webhook/panel`
-- **OpenAPI 3.0**: `GET /api/plugins/custom-webhook/openapi.json`
-- **Health Check**: `GET /api/plugins/custom-webhook/health`
-
----
-
-## 🛠 Examples & Demos
-
-We provide a **fully functional Node.js Demo Backend** that demonstrates how to implement both Sync and Async modes, handle Push callbacks, paginate history, and monitor connection health.
-
-👉 [View Demo Backend Implementation (examples/demo-backend)](./examples/demo-backend/README.md)
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/panel` | GET | No | Web chat UI |
+| `/docs` | GET | No | Swagger UI documentation |
+| `/openapi.json` | GET | No | OpenAPI 3.0.3 spec |
+| `/health` | GET | No | Gateway health + uptime |
+| `/events` | GET | No | Recent event log (ring buffer) |
 
 ---
 
-## ⚙️ Configuration Reference
+## Multi-Turn Conversations
 
-The plugin stores its configuration in your global OpenClaw settings `~/.openclaw/openclaw.json`. 
+The plugin automatically maintains conversation sessions. Messages with the **same `senderId`** are routed to the same agent session, so the agent remembers previous context:
+
+```bash
+# Message 1
+curl -X POST .../webhook -H "Authorization: Bearer secret" \
+  -d '{"senderId": "alice", "text": "My name is Alice"}'
+# → "Nice to meet you, Alice!"
+
+# Message 2 (same senderId)
+curl -X POST .../webhook -H "Authorization: Bearer secret" \
+  -d '{"senderId": "alice", "text": "What is my name?"}'
+# → "Your name is Alice!"
+```
+
+Different `senderId` values create isolated sessions — perfect for multi-tenant applications.
+
+---
+
+## Configuration
+
+The plugin reads its config from `~/.openclaw/openclaw.json`:
 
 ```json
 {
@@ -170,9 +214,9 @@ The plugin stores its configuration in your global OpenClaw settings `~/.opencla
     "custom-webhook": {
       "accounts": {
         "default": {
-          "receiveSecret": "YOUR_BEARER_TOKEN_HERE",
-          "pushUrl": "https://your-backend.com/api/receive",
-          "pushSecret": "TOKEN_YOUR_BACKEND_EXPECTS"
+          "receiveSecret": "YOUR_BEARER_TOKEN",
+          "pushUrl": "https://your-backend.com/api/webhook-callback",
+          "pushSecret": "TOKEN_FOR_YOUR_BACKEND"
         }
       }
     }
@@ -180,10 +224,153 @@ The plugin stores its configuration in your global OpenClaw settings `~/.opencla
 }
 ```
 
-- `receiveSecret`: The token your system must send to OpenClaw.
-- `pushUrl`: Where OpenClaw should POST async replies.
-- `pushSecret`: The token OpenClaw will send to your server in the `Authorization` header.
+| Key | Description |
+|-----|-------------|
+| `receiveSecret` | Bearer token required to call the webhook API |
+| `pushUrl` | Your server's URL for receiving async agent replies |
+| `pushSecret` | Token sent by OpenClaw in the `Authorization` header when pushing to your server |
 
-## 📄 License
+---
+
+## Security
+
+### Authentication
+All `/webhook` requests require a valid Bearer token matching `receiveSecret`.
+
+### HMAC Request Signing (Optional)
+
+OpenClaw **always sends signature headers** (when `pushSecret` is configured), but **verifying them is entirely your choice**:
+
+| Strategy | When to use |
+|----------|-------------|
+| Verify Bearer Token only | Internal network, small projects, quick integration |
+| Verify HMAC signature (recommended) | Public-facing `pushUrl`, production environments |
+| Verify both | High-security requirements |
+| Skip verification | Local testing only |
+
+Every push request includes:
+```
+Authorization: Bearer <pushSecret>
+X-Signature: sha256=<HMAC-SHA256 digest>
+X-Timestamp: <millisecond timestamp>
+```
+
+> **Note**: `X-Timestamp` is generated **at push time**, not when the user sent the message.
+> Even if the agent takes 10 minutes to respond, the timestamp on the push will always be "just now" — the 5-minute replay window will never false-positive.
+
+**Use the raw request body for verification** — not `JSON.stringify(req.body)` — otherwise the signature will not match:
+
+```javascript
+const crypto = require('crypto');
+app.use(express.json({
+  verify: (req, res, buf) => { req.rawBody = buf.toString('utf8'); }
+}));
+
+app.post('/receive', (req, res) => {
+  const signature = req.headers['x-signature'];
+  const timestamp  = req.headers['x-timestamp'];
+
+  // Replay protection: reject requests older than 5 minutes
+  if (Math.abs(Date.now() - Number(timestamp)) > 5 * 60 * 1000) {
+    return res.status(401).json({ error: 'timestamp expired' });
+  }
+
+  // HMAC verification using raw body (not re-serialized JSON)
+  const expected = 'sha256=' + crypto
+    .createHmac('sha256', process.env.PUSH_SECRET)
+    .update(`${timestamp}.${req.rawBody}`)
+    .digest('hex');
+
+  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+    return res.status(401).json({ error: 'invalid signature' });
+  }
+
+  const { senderId, reply } = req.body;
+  res.json({ ok: true });
+});
+```
+
+### Rate Limiting
+Sliding-window rate limiter at 30 requests/minute per IP. Returns `429 Too Many Requests` when exceeded.
+
+### Request Size
+Maximum body size: 10 MB.
+
+---
+
+## Architecture
+
+```
+~/.openclaw/extensions/custom-webhook/
+├── index.ts              # Plugin entry: routes, Swagger UI, OpenAPI spec
+├── src/
+│   ├── panel/
+│   │   └── template.ts   # Web Panel HTML template (dark/light themes)
+│   └── services/
+│       ├── hmac.ts        # HMAC-SHA256 signing for push callbacks
+│       ├── rate-limiter.ts # Sliding-window rate limiter
+│       └── push.ts        # Reliable push with retry logic
+├── openclaw.plugin.json   # Plugin manifest
+└── package.json
+```
+
+---
+
+## Integration Examples
+
+### Python
+
+```python
+import requests
+
+resp = requests.post(
+    "http://localhost:18789/api/plugins/custom-webhook/webhook",
+    json={"senderId": "py-bot", "text": "Hello from Python!"},
+    headers={"Authorization": "Bearer YOUR_SECRET"}
+)
+print(resp.json()["reply"])
+```
+
+### Node.js
+
+```javascript
+const resp = await fetch("http://localhost:18789/api/plugins/custom-webhook/webhook", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer YOUR_SECRET"
+  },
+  body: JSON.stringify({ senderId: "node-bot", text: "Hello from Node!" })
+});
+const { reply } = await resp.json();
+```
+
+### WeCom Bot (企业微信)
+
+```python
+# In your WeCom message handler:
+def on_message(msg):
+    resp = requests.post(WEBHOOK_URL,
+        json={"senderId": msg.from_user, "text": msg.content},
+        headers={"Authorization": f"Bearer {SECRET}"}
+    )
+    return resp.json()["reply"]
+```
+
+---
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| `Cannot find module 'openclaw/plugin-sdk'` | Run `npx openclaw-custom-webhook fix-sdk` |
+| Gateway not loading the plugin | Check `openclaw gateway restart` or look at `openclaw channels status` |
+| 401 Unauthorized | Verify your `receiveSecret` in `~/.openclaw/openclaw.json` matches the Bearer token |
+| 429 Too Many Requests | Rate limit exceeded. Wait 60 seconds or adjust rate limit config |
+| Panel shows OFFLINE | Gateway may need restart: `openclaw gateway restart` |
+
+---
+
+## License
 
 MIT © [LiuZhiXiong](https://github.com/LiuZhiXiong)

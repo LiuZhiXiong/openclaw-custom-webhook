@@ -1,5 +1,7 @@
 /** Push with retry — 3 attempts, exponential backoff (1s, 2s, 4s). */
 
+import { signPayload } from "./hmac.ts";
+
 interface Logger {
   info: (msg: string) => void;
   warn: (msg: string) => void;
@@ -15,13 +17,23 @@ export async function pushWithRetry(
 ): Promise<void> {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
+      const bodyStr = JSON.stringify(payload);
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (secret) {
+        headers["Authorization"] = `Bearer ${secret}`;
+        // HMAC-SHA256 signature for tamper-proof verification
+        const { signature, timestamp } = signPayload(bodyStr, secret);
+        headers["X-Signature"] = `sha256=${signature}`;
+        headers["X-Timestamp"] = timestamp;
+      }
+
       const resp = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
-        },
-        body: JSON.stringify(payload),
+        headers,
+        body: bodyStr,
       });
       if (resp.ok) {
         logger.info(`[custom-webhook] Push success (attempt ${attempt})`);
