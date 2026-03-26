@@ -1,132 +1,178 @@
-# 🦞 openclaw-custom-webhook
-
-Custom HTTP Webhook channel plugin for [OpenClaw](https://github.com/openclaw/openclaw) — connect any HTTP client, bot, or automation to AI agents.
+# 🦞 OpenClaw Custom Webhook
 
 [![npm version](https://img.shields.io/npm/v/openclaw-custom-webhook.svg)](https://www.npmjs.com/package/openclaw-custom-webhook)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![OpenClaw: v2026.3+](https://img.shields.io/badge/OpenClaw-v2026.3+-orange.svg)](https://github.com/openclaw/openclaw)
 
-## ✨ Features
+A production-grade HTTP Webhook channel plugin for **OpenClaw AI Agents**. Connect any backend, bot, automation script, or frontend interface to your AI agents via standard REST APIs.
 
-| Feature | Description |
-|---------|-------------|
-| 🖥 **Web 测试面板** | 内置深色主题聊天 UI，浏览器直接测试 Agent |
-| 💬 **消息历史** | localStorage 持久化，刷新页面不丢失 |
-| 📋 **OpenAPI 文档** | 自动生成 3.0.3 标准 API 文档 |
-| ⚡ **异步模式** | `async: true` 返回 202，后台处理并推送结果 |
-| 🔄 **消息去重** | 5 分钟 TTL 缓存，防重复消息 |
-| 🔁 **推送重试** | 3 次指数退避重试（1s → 2s → 4s） |
-| 🖼 **多媒体支持** | 图片/文件自动下载 → Agent 视觉管道 |
-| 🏥 **健康检查** | `/health` 端点实时监控 |
-| 🗑 **一键卸载** | `uninstall` 命令清理全部配置和文件 |
+---
+
+## ✨ Key Features
+
+| Capability | Description |
+|------------|-------------|
+| 🖥 **Neo-Industrial Web Panel** | Built-in browser chat UI for instant Agent testing and debugging |
+| ⚡️ **Async Processing** | Pass `async: true` to get 202 Accepted; results are pushed to your `pushUrl` |
+| 🔄 **Idempotent Delivery** | `messageId` deduplication with 5-minute TTL to prevent duplicate agent replies |
+| 🔁 **Reliable Push** | Auto-retries (3x exponential backoff) for push callbacks if your server drops connections |
+| 🖼 **Multi-Modal Support** | Native image/file attachment processing directly into the Agent's vision pipeline |
+| 📚 **Interactive OpenAPI** | Auto-generated standard OpenAPI 3.0.3 specification at `/openapi.json` |
+| 🏥 **Health Monitoring** | Real-time gateway connectivity and plugin uptime via `/health` |
+
+---
 
 ## 🚀 Quick Start
+
+Install globally using `npx`. The installer will automatically configure the plugin, patch your OpenClaw SDK, set up authentication secrets, and restart the gateway:
 
 ```bash
 npx openclaw-custom-webhook install
 ```
 
-一键完成：安装插件 → 修复 SDK → 配置密钥 → 重启 Gateway
-
-安装完成后，打开浏览器访问：
-
-```
-http://localhost:18789/api/plugins/custom-webhook/panel
-```
-
-## 📡 API Endpoints
-
-| 端点 | 说明 |
-|------|------|
-| `POST /api/plugins/custom-webhook/webhook` | 发送消息给 Agent |
-| `GET /api/plugins/custom-webhook/panel` | Web 聊天测试面板 |
-| `GET /api/plugins/custom-webhook/openapi.json` | OpenAPI 3.0 文档 |
-| `GET /api/plugins/custom-webhook/health` | 健康检查 |
-
-### 发送消息
+Once installed, simply open the Web Panel to start chatting with your Agent immediately:
 
 ```bash
-curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_SECRET" \
-  -d '{
-    "senderId": "user1",
-    "chatId": "user1",
-    "text": "你好，请介绍一下自己"
-  }'
+npx openclaw-custom-webhook open
 ```
+*(Or navigate to `http://localhost:18789/api/plugins/custom-webhook/panel`)*
 
-### 响应示例
+---
 
-```json
-{
-  "ok": true,
-  "reply": "你好！我是 AI 助手...",
-  "timestamp": 1711234567890
-}
-```
+## 💻 CLI Toolkit
 
-### 异步模式
-
-```bash
-curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_SECRET" \
-  -d '{
-    "senderId": "user1",
-    "text": "分析这份文档",
-    "async": true
-  }'
-```
-
-返回 `202 Accepted`，Agent 处理完后推送到 `pushUrl`。
-
-### 带附件消息
-
-```json
-{
-  "senderId": "user1",
-  "text": "这张图片是什么？",
-  "attachments": [
-    { "type": "image", "url": "https://example.com/photo.jpg" }
-  ]
-}
-```
-
-## 🎛 CLI Commands
+Manage your plugin lifecycle directly from the terminal:
 
 ```bash
 npx openclaw-custom-webhook [command]
 ```
 
-| 分类 | 命令 | 说明 |
-|------|------|------|
-| **安装** | `install` | 一键安装（插件 + SDK + 配置 + 重启） |
-| | `uninstall` | 完整卸载（目录 + 配置全清） |
-| | `fix-sdk` | 修复 plugin-sdk symlink |
-| **配置** | `setup` | 交互式配置密钥 |
-| | `status` | 查看插件状态、配置和端点 |
-| **使用** | `test` | 发送测试消息 |
-| | `open` | 在浏览器打开 Web 面板 |
+| Command | Action |
+|---------|--------|
+| `install` | Install/Upgrade plugin, setup SDK, configure secrets, reboot gateway |
+| `status` | View gateway health, active endpoints, and loaded configurations |
+| `open` | Open the Web UI Panel in your default browser |
+| `test` | Send a quick CLI-based test message to the Agent |
+| `setup` | Interactively modify your auth keys (`receiveSecret` & `pushUrl`) |
+| `fix-sdk` | Manually repair the `plugin-sdk` symlink after an NPM global update |
+| `uninstall`| completely wipe the plugin directory and `openclaw.json` configurations |
 
-## ⚙️ Configuration
+---
 
-配置存储在 `~/.openclaw/openclaw.json`：
+## 📡 REST API Reference
+
+> **Authentication**: All endpoints require a Bearer token matching your `receiveSecret` configured in `~/.openclaw/openclaw.json`.
+> ```http
+> Authorization: Bearer <your-secret>
+> ```
+
+### 1. Send Message (Sync)
+**`POST /api/plugins/custom-webhook/webhook`**
+
+Hold the connection open until the Agent replies.
+
+```bash
+curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer my_super_secret" \
+  -d '{
+    "senderId": "user123",
+    "text": "What is the weather today?",
+    "messageId": "unique-msg-001"
+  }'
+```
+
+<details>
+<summary><strong>View Response</strong></summary>
 
 ```json
 {
-  "plugins": {
-    "allow": ["custom-webhook"],
-    "entries": {
-      "custom-webhook": { "enabled": true }
-    }
-  },
+  "ok": true,
+  "reply": "I cannot check real-time weather, but I am here to help!",
+  "timestamp": 1774463000000
+}
+```
+</details>
+
+### 2. Send Message (Async)
+**`POST /api/plugins/custom-webhook/webhook`**
+
+Return immediately. The Agent will process the message in the background and POST the result to your `pushUrl`.
+
+```bash
+curl -X POST http://localhost:18789/api/plugins/custom-webhook/webhook \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer my_super_secret" \
+  -d '{
+    "senderId": "user123",
+    "text": "Summarize this 50-page document.",
+    "async": true
+  }'
+```
+
+<details>
+<summary><strong>View Response</strong></summary>
+
+```json
+{
+  "ok": true,
+  "async": true,
+  "messageId": "wh-1774463000000"
+}
+```
+</details>
+
+### 3. Agent Push Callback (Your Server)
+**`POST <your-pushUrl>`**
+
+If you use Async mode, OpenClaw will POST this payload to your backend.
+
+<details>
+<summary><strong>View Payload Format</strong></summary>
+
+```json
+{
+  "type": "agent_reply",
+  "senderId": "user123",
+  "chatId": "user123",
+  "reply": "Here is the summary you requested...",
+  "attachments": [
+    { "type": "image", "url": "https://cdn.example.com/generated-chart.png" }
+  ],
+  "timestamp": 1774463005000
+}
+```
+</details>
+
+### 4. System Endpoints
+
+- **Web Panel**: `GET /api/plugins/custom-webhook/panel`
+- **OpenAPI 3.0**: `GET /api/plugins/custom-webhook/openapi.json`
+- **Health Check**: `GET /api/plugins/custom-webhook/health`
+
+---
+
+## 🛠 Examples & Demos
+
+We provide a **fully functional Node.js Demo Backend** that demonstrates how to implement both Sync and Async modes, handle Push callbacks, paginate history, and monitor connection health.
+
+👉 [View Demo Backend Implementation (examples/demo-backend)](./examples/demo-backend/README.md)
+
+---
+
+## ⚙️ Configuration Reference
+
+The plugin stores its configuration in your global OpenClaw settings `~/.openclaw/openclaw.json`. 
+
+```json
+{
   "channels": {
     "custom-webhook": {
       "accounts": {
         "default": {
-          "receiveSecret": "your-secret-key",
-          "pushUrl": "https://your-server.com/webhook",
-          "pushSecret": "push-auth-token"
+          "receiveSecret": "YOUR_BEARER_TOKEN_HERE",
+          "pushUrl": "https://your-backend.com/api/receive",
+          "pushSecret": "TOKEN_YOUR_BACKEND_EXPECTS"
         }
       }
     }
@@ -134,91 +180,10 @@ npx openclaw-custom-webhook [command]
 }
 ```
 
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `receiveSecret` | 是 | Bearer token，用于验证入站请求 |
-| `pushUrl` | 否 | Agent 回复推送地址（异步模式必填） |
-| `pushSecret` | 否 | 推送请求的 Authorization header |
-
-## 🖥 Web 测试面板
-
-面板地址：`http://localhost:18789/api/plugins/custom-webhook/panel`
-
-**特性：**
-- 🌑 深色玻璃拟态 UI
-- 💾 聊天历史浏览器端持久化（最近 200 条）
-- 🟢 实时 Gateway 健康状态
-- ⚙️ Secret / Sender / Async 配置
-- 🗑 一键清空聊天
-- 📱 响应式设计
-
-**快捷打开：**
-
-```bash
-npx openclaw-custom-webhook open
-```
-
-## 🔧 Troubleshooting
-
-### 插件 ID 不匹配警告
-
-```
-plugin id mismatch (manifest uses "custom-webhook", entry hints "openclaw-custom-webhook")
-```
-
-这是无害警告，不影响功能。
-
-### Gateway 须绑定外网
-
-如需外部访问，启动 Gateway 时指定：
-
-```bash
-openclaw gateway run --bind 0.0.0.0 --port 18789
-```
-
-### SDK 链接问题
-
-```bash
-npx openclaw-custom-webhook fix-sdk
-```
-
-### 完整卸载
-
-```bash
-npx openclaw-custom-webhook uninstall
-```
-
-## 📝 Changelog
-
-### v1.6.1
-- ✨ 全新 Neo-Industrial 赛博工业风 Web 面板 UI
-- ⌨️ 引入 JetBrains Mono 极客终端字体配搭
-- 📟 纯净深邃的动态网格背景与呼吸光效
-- 💬 强化视觉层级与终端排版风格
-
-### v1.6.0
-- 🎨 全新 glassmorphism Web 面板 UI
-- 💾 localStorage 消息历史持久化
-- 🗑 清空聊天 + Secret 记忆功能
-- 📊 消息计数 + 格式化运行时间
-- 📤 SVG 发送按钮 + 响应式设计
-
-### v1.5.2
-- ➕ `open` 命令打开 Web 面板
-- ➕ `status` 命令查看插件状态
-- ➕ `uninstall` 命令完整卸载
-- 🎨 安装完成提示显示所有端点 URL
-
-### v1.5.0
-- 🖥 Web 测试面板 + OpenAPI 文档端点
-
-### v1.4.0
-- ⚡ 异步处理模式
-- 🔄 消息去重
-- 🔁 推送重试
-- 🏥 健康检查端点
-- 🖼 多媒体视觉管道 + 临时文件清理
+- `receiveSecret`: The token your system must send to OpenClaw.
+- `pushUrl`: Where OpenClaw should POST async replies.
+- `pushSecret`: The token OpenClaw will send to your server in the `Authorization` header.
 
 ## 📄 License
 
-MIT
+MIT © [LiuZhiXiong](https://github.com/LiuZhiXiong)
