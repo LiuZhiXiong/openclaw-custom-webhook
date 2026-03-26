@@ -24,7 +24,7 @@ function getOpenApiSpec(host: string) {
         "3. **Receive (async)**: Set `async: true` — the endpoint returns 202 immediately, " +
         "and the Agent reply is pushed to your configured `pushUrl` when ready.\n\n" +
         "Both camelCase (`senderId`) and snake_case (`sender_id`) field names are accepted.",
-      version: "1.6.6",
+      version: "1.6.7",
       contact: { url: "https://github.com/LiuZhiXiong/openclaw-custom-webhook" },
     },
     servers: [{ url: host, description: "Current gateway" }],
@@ -858,7 +858,7 @@ const plugin = {
         res.end(JSON.stringify({
           ok: true,
           plugin: "custom-webhook",
-          version: "1.6.6",
+          version: "1.6.7",
           uptime: process.uptime(),
           timestamp: Date.now(),
         }));
